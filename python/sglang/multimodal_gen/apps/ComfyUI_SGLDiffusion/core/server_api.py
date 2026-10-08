@@ -6,8 +6,11 @@ Provides a low-level interface for interacting with SGLang Diffusion HTTP server
 import base64
 import io
 import os
+import re
 import time
+import uuid
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 import requests
 from PIL import Image
@@ -357,6 +360,45 @@ class SGLDiffusionServerAPI:
             )
         except requests.exceptions.RequestException as e:
             raise RuntimeError(f"Failed to generate video: {str(e)}")
+
+    def fetch_video(self, video: Dict[str, Any], dest_dir: str) -> str:
+        """Return a local path for a finished video job, downloading if needed.
+
+        ``file_path`` is a path on the server host: it is ``None`` once the
+        server uploaded the video to cloud storage, and unreadable here when
+        the server runs on another machine.
+        """
+        file_path = video.get("file_path")
+        if file_path and os.path.isfile(file_path):
+            return file_path
+        video_id = video.get("id")
+        if video.get("url"):
+            # A third-party URL: do not send this server's API key.
+            source, headers = video["url"], None
+        else:
+            source, headers = f"{self.base_url}/videos/{video_id}/content", self.headers
+        name = os.path.basename(urlparse(source).path) if video.get("url") else ""
+        ext = os.path.splitext(name or file_path or "")[1]
+        if not re.fullmatch(r"\.[A-Za-z0-9]{1,8}", ext):
+            ext = ".mp4"
+        # Local name only: the job id and URL come from the server.
+        dest = os.path.join(dest_dir, f"sgld_video_{uuid.uuid4().hex}{ext}")
+        partial = f"{dest}.part"
+        try:
+            with requests.get(source, headers=headers, stream=True, timeout=300) as r:
+                r.raise_for_status()
+                with open(partial, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=1 << 20):
+                        f.write(chunk)
+            os.replace(partial, dest)
+        except (requests.exceptions.RequestException, OSError) as e:
+            if os.path.exists(partial):
+                os.remove(partial)
+            raise RuntimeError(
+                f"Video {video_id} has no local file and could not be downloaded "
+                f"from {source}: {e}"
+            )
+        return dest
 
     def _build_image_common_params(
         self,

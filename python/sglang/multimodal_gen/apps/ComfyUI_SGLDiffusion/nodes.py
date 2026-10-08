@@ -623,8 +623,8 @@ class SGLDiffusionGenerateVideo:
         # Call API
         try:
             response = sgld_client.generate_video(**request_params)
-            video_path = response.get("file_path", "")
-            video = convert_video_to_comfy_video(video_path, height, width)
+            video_path = sgld_client.fetch_video(response, output_dir)
+            video = convert_video_to_comfy_video(video_path)
         except Exception as e:
             raise RuntimeError(f"Failed to generate video: {str(e)}")
 
@@ -834,15 +834,12 @@ class SGLDiffusionGenerateH3:
         except Exception as e:
             raise RuntimeError(f"Failed to generate MiniMax-H3 video: {str(e)}")
 
-        video_path = response.get("file_path", "")
-        # H3 aligns the canvas server-side, so the resolved size is only known
-        # from the response; short_edge and aspect_ratio cannot reconstruct it
-        resolved_size = response.get("size", "")
-        if resolved_size:
-            width, height = (int(v) for v in resolved_size.split("x"))
-        else:
-            width = height = short_edge
-        video = convert_video_to_comfy_video(video_path, height, width)
+        # VideoFromFile reads the size from the file, so the canvas H3 aligned
+        # server-side needs no reconstruction here.
+        video_path = sgld_client.fetch_video(
+            response, folder_paths.get_temp_directory()
+        )
+        video = convert_video_to_comfy_video(video_path)
 
         return (video, video_path)
 

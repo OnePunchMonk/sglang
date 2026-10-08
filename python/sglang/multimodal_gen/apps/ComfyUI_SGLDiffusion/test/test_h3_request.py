@@ -6,6 +6,7 @@ only HTTP, so a change on either side of the payload contract fails here.
 
 import importlib.util
 import sys
+import tempfile
 import types
 from pathlib import Path
 from unittest import mock
@@ -36,8 +37,21 @@ def _install_comfy_stubs() -> None:
 
     comfy_api_input.VideoInput = VideoInput
     comfy_api.input = comfy_api_input
+
+    comfy_api_input_impl = types.ModuleType("comfy_api.input_impl")
+
+    class VideoFromFile(VideoInput):
+        def __init__(self, file):
+            self._file = file
+
+        def get_stream_source(self):
+            return self._file
+
+    comfy_api_input_impl.VideoFromFile = VideoFromFile
+    comfy_api.input_impl = comfy_api_input_impl
     sys.modules.setdefault("comfy_api", comfy_api)
     sys.modules.setdefault("comfy_api.input", comfy_api_input)
+    sys.modules.setdefault("comfy_api.input_impl", comfy_api_input_impl)
 
     comfy = types.ModuleType("comfy")
     comfy.model_detection = types.ModuleType("comfy.model_detection")
@@ -112,6 +126,8 @@ SGLDiffusionServerAPI = SERVER_API.SGLDiffusionServerAPI
 SGLDiffusionGenerateH3 = NODES.SGLDiffusionGenerateH3
 
 RESOLVED_SIZE = "1344x768"
+# The server wrote the video where this process can read it (same host).
+OUTPUT_FILE = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False).name
 
 
 class _Response:
@@ -140,7 +156,7 @@ def _run_node(**node_kwargs):
                 "id": "job-1",
                 "status": "completed",
                 "size": RESOLVED_SIZE,
-                "file_path": "/tmp/out.mp4",
+                "file_path": OUTPUT_FILE,
             }
         )
 
@@ -218,11 +234,13 @@ def test_remote_reference_urls_pass_through_unchanged():
     assert payload["conditions"][0]["uri"] == url
 
 
-def test_node_reports_the_server_resolved_canvas():
+def test_node_returns_the_server_output_file():
+    # The VIDEO wraps the server's file via ComfyUI's VideoFromFile, which reads
+    # the server-aligned canvas from the file itself.
     _, (video, video_path) = _run_node(positive_prompt="a cat", task="t2va")
 
-    assert video.get_dimensions() == (1344, 768)
-    assert video_path == "/tmp/out.mp4"
+    assert video_path == OUTPUT_FILE
+    assert video.get_stream_source() == OUTPUT_FILE
 
 
 @pytest.mark.parametrize(
