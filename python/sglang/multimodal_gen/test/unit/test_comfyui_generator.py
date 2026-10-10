@@ -135,3 +135,22 @@ def test_generator_reports_real_runtime_import_error(caplog) -> None:
     with pytest.raises(RuntimeError, match="failed to import") as err:
         module.SGLDiffusionGenerator().init_generator("flux", "FluxPipeline", {})
     assert isinstance(err.value.__cause__, ImportError)
+
+
+def test_loader_cache_dit_flag_change_reuses_worker() -> None:
+    runtime = SGLDiffusionGenerator()
+    patcher = object()
+    runtime.last_options = {
+        "model_path": "h3.safetensors",
+        "model_options": {},
+        "sgld_options": {},
+        "set_model_type": None,
+    }
+    runtime.generator = object()
+    runtime._patcher = patcher
+    runtime.executor = SimpleNamespace(enable_cache_dit=None)
+    runtime._is_live = lambda: True
+    for flag in (True, False):
+        got = runtime.load_model("h3.safetensors", {}, {"enable_cache_dit": flag})
+        assert got is patcher
+        assert runtime.executor.enable_cache_dit is flag

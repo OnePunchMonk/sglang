@@ -6,6 +6,11 @@ import uuid
 
 import torch
 
+from sglang.multimodal_gen.apps.ComfyUI_SGLDiffusion.executors.cache_options import (
+    check_cache_options_supported,
+    read_cache_options,
+)
+
 try:
     from sglang.multimodal_gen.configs.sample.sampling_params import SamplingParams
     from sglang.multimodal_gen.runtime.entrypoints.utils import prepare_request
@@ -24,6 +29,10 @@ class SGLDiffusionExecutor(torch.nn.Module):
     """Shared ComfyUI DiT-forward executor. Per-model logic lives on the adapter."""
 
     adapter_cls = None
+    # Cache-DiT needs a multi-step run on the worker; only H3 has one.
+    supports_cache_dit = False
+    # Loader-option default (SGLDOptions); a per-run SGLDCacheOptions value wins.
+    enable_cache_dit: bool | None = None
 
     def __init__(self, generator, model_path, model, config):
         super(SGLDiffusionExecutor, self).__init__()
@@ -108,7 +117,7 @@ class SGLDiffusionExecutor(torch.nn.Module):
                 self._sent_conds.add(key)
 
     def _sampling_params_kwargs(self, packed, timestep) -> dict:
-        return {
+        kwargs = {
             "prompt": " ",
             "guidance_scale": packed.guidance_scale,
             "height": packed.height,
@@ -118,6 +127,17 @@ class SGLDiffusionExecutor(torch.nn.Module):
             "save_output": False,
             "suppress_logs": self.should_suppress_logs(timestep),
         }
+        if self.supports_cache_dit:
+            enable = packed.cache_options.get("enable_cache_dit")
+            if enable is None:
+                enable = self.enable_cache_dit
+            if enable is not None:
+                kwargs["enable_cache_dit"] = bool(enable)
+            if enable and packed.cache_options.get("cache_dit_params"):
+                kwargs["cache_dit_params"] = dict(
+                    packed.cache_options["cache_dit_params"]
+                )
+        return kwargs
 
     def _execute_packed(self, packed, x, timestep):
         if _RUNTIME_IMPORT_ERROR is not None:
@@ -153,4 +173,6 @@ class SGLDiffusionExecutor(torch.nn.Module):
 
     def forward(self, x, timestep, context, **kwargs):
         packed = self.adapter.pack(x, timestep, context, **kwargs)
+        packed.cache_options = read_cache_options(kwargs.get("transformer_options"))
+        check_cache_options_supported(self, packed.cache_options)
         return self._execute_packed(packed, x, timestep)
