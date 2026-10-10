@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 """Pack / unpack contract for ComfyUI model adapters."""
 
+import pytest
 import torch
 
 from sglang.multimodal_gen.apps.ComfyUI_SGLDiffusion.executors.adapter import (
     get_adapter_class,
     registered_model_types,
+)
+from sglang.multimodal_gen.apps.ComfyUI_SGLDiffusion.executors.base import (
+    SGLDiffusionExecutor,
 )
 from sglang.multimodal_gen.apps.ComfyUI_SGLDiffusion.executors.flux import FluxAdapter
 from sglang.multimodal_gen.apps.ComfyUI_SGLDiffusion.executors.zimage import (
@@ -56,3 +60,48 @@ def test_flux_pack_and_unpack_roundtrip() -> None:
 
     default = adapter.pack(x, timestep, context, y=y)
     assert default.guidance_scale == 3.5
+
+
+def _flux_step(**kwargs):
+    x = torch.zeros(2, 16, 8, 8)
+    return FluxAdapter().pack(
+        x, torch.tensor([0.5]), torch.ones(2, 8, 4096), y=torch.ones(2, 768), **kwargs
+    )
+
+
+def test_flux_pack_forwards_control_residuals_with_gaps() -> None:
+    seq = (8 // 2) * (8 // 2)
+    double = [torch.ones(2, seq, 3072), None, torch.ones(2, seq, 3072)]
+    single = [torch.ones(2, seq, 3072)]
+    packed = _flux_step(control={"input": double, "output": single})
+    assert packed.control["input"][1] is None
+    assert len(packed.control["input"]) == 3
+    assert len(packed.control["output"]) == 1
+    assert _flux_step().control is None
+    assert _flux_step(control={"input": [None]}).control is None
+
+
+def test_flux_pack_rejects_misshaped_control() -> None:
+    with pytest.raises(ValueError, match=r"control input\[0\]"):
+        _flux_step(control={"input": [torch.ones(2, 3, 3072)]})
+
+
+def test_control_is_rejected_for_adapters_that_do_not_apply_it() -> None:
+    class _Executor(SGLDiffusionExecutor):
+        adapter_cls = ZImageAdapter
+
+        def __init__(self):
+            torch.nn.Module.__init__(self)
+            self.adapter = ZImageAdapter()
+
+    executor = _Executor()
+    control = {"input": [torch.ones(1, 4, 8)]}
+    with pytest.raises(ValueError, match="does not apply control"):
+        executor(
+            torch.ones(1, 16, 8, 8),
+            torch.tensor([1.0]),
+            torch.ones(1, 8, 16),
+            control=control,
+        )
+    assert FluxAdapter.applied_conditioning == ("control",)
+    assert ZImageAdapter.applied_conditioning == ()
