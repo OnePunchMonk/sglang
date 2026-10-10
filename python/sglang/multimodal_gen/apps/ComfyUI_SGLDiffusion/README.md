@@ -24,6 +24,7 @@ The plugin supports two modes of operation: **Server Mode** (via HTTP API) and *
 - **Z-Image**: High-speed image generation models (e.g., `Z-Image-Turbo`)
 - **FLUX**: State-of-the-art text-to-image models (e.g., `FLUX.1-dev`)
 - **Qwen-Image**: Multi-modal image generation models (e.g., `Qwen-Image`,`Qwen-Image-2512`). *Note: Image editing support is currently experimental and may have some issues.*
+- **Wan 2.1 / 2.2**: Video DiTs (`model_type=wan2.1`, auto-detected): T2V, I2V, the 2.2 A14B two-expert releases, and 2.2 TI2V-5B. Integrated mode only; see [Wan in Integrated Mode](#wan-in-integrated-mode).
 - **MiniMax-H3**: Joint video-and-audio DiT (`model_type=minimax_h3`). Integrated mode: T2V / I2VA / FL2VA use an `fl2va` checkpoint; R2V needs `ref2va`. CLIP and VAE stay in ComfyUI. Server mode uses `SGLDiffusion Generate MiniMax-H3`.
 
 ### Mode 1: Server Mode (HTTP API)
@@ -46,6 +47,28 @@ decode on the worker).
 2. **Configure Options**: Use the `SGLDiffusion Options` node to set runtime parameters like `num_gpus`, `tp_size`, `model_type`, or `enable_torch_compile`.
 3. **Sample**: Connect the loaded model to standard ComfyUI samplers. Each step is packed by a model adapter and sent to the SGLang scheduler.
 4. **LoRA Support**: Use the `SGLDiffusion LoRA Loader` for native LoRA integration.
+
+### Wan in Integrated Mode
+
+Load the original-layout BF16/FP16 checkpoint (the Comfy-Org repackaged files) with
+the `SGLDiffusion UNET Loader`. CLIP vision, the text encoder and the VAE stay in
+ComfyUI. Sequence parallelism (`sp_degree` / `ulysses_degree` in the options node) splits
+the video along frames.
+
+Wan 2.2 A14B ships two experts. Load the **high-noise** file in the loader and set the
+**low-noise** file as `transformer_2_weights_path` in `SGLDiffusion Options`. Wire the one
+resulting `MODEL` into both `KSamplerAdvanced` passes: the worker holds both experts and
+picks one per step by comparing the step's sigma with `boundary_ratio` (default 0.875 for
+T2V, 0.9 for I2V, the official values). The sigma where your two passes hand
+over is what matters, so set `boundary_ratio` to a value between the last sigma of pass 1 and
+the first sigma of pass 2. The example workflows split at step 10 of 20 with shift 8 (sigmas
+0.907 then 0.889), so they set `boundary_ratio=0.9`.
+
+GGUF for the high-noise expert goes through `transformer_weights_path` with a BF16 safetensors
+as the loaded model (untested for Wan). Not supported yet: fp8-scaled checkpoints, GGUF for
+the low-noise expert, first-last-frame,
+and the VACE / camera / S2V / animate / reference-image Wan variants (these are rejected
+with an error naming the variant).
 
 ## Adding a Model
 
@@ -85,6 +108,10 @@ Reference workflow files are provided in the `workflows/` directory:
 - **`z-image_sgld.json`**: High-speed image generation using Z-Image.
 - **`sgld_text2img.json`**: Server-mode text-to-image generation with LoRA support.
 - **`sgld_image2video.json`**: Server-mode image-to-video generation.
+- **`wan21_t2v_sgld.json`**: Wan 2.1 T2V.
+- **`wan22_a14b_t2v_sgld.json`**: Wan 2.2 A14B T2V, both experts on one worker, two chained `KSamplerAdvanced` passes.
+- **`wan22_a14b_i2v_sgld.json`**: Wan 2.2 A14B I2V, same two-pass layout with `WanImageToVideo`.
+- **`wan22_ti2v_5b_sgld.json`**: Wan 2.2 TI2V-5B (48-channel VAE, optional start image).
 - **`minimax_h3_t2v_sgld.json`**: MiniMax-H3 T2V / I2VA / FL2VA (`fl2va` DiT).
 - **`minimax_h3_r2v_sgld.json`**: MiniMax-H3 reference-to-video (`ref2va` DiT).
 - **`minimax_h3_t2v_sgld_upscaler.json`**: H3 two-pass latent upscale (low-res then 3D ×2 refine).

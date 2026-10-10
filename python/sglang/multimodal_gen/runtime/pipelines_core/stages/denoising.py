@@ -139,6 +139,7 @@ from sglang.multimodal_gen.runtime.pipelines_core.stages.base import (
 )
 from sglang.multimodal_gen.runtime.pipelines_core.stages.model_specific_stages.wan_ti2v import (
     blend_wan_ti2v_latents,
+    expand_comfyui_frame_timestep,
     expand_wan_ti2v_timestep,
     prepare_wan_ti2v_latents,
     prepare_wan_ti2v_sp_inputs,
@@ -167,9 +168,7 @@ from sglang.multimodal_gen.runtime.utils.precision import (
 from sglang.multimodal_gen.runtime.utils.precision import (
     autocast_enabled as precision_autocast_enabled,
 )
-from sglang.multimodal_gen.runtime.utils.precision import (
-    resolve_precision,
-)
+from sglang.multimodal_gen.runtime.utils.precision import resolve_precision
 from sglang.multimodal_gen.runtime.utils.profiler import SGLDiffusionProfiler
 from sglang.multimodal_gen.runtime.utils.torch_compile import (
     CompiledModuleRegistry,
@@ -2015,6 +2014,15 @@ class DenoisingStage(PipelineStage, RolloutDenoisingMixin):
     ):
         bsz = batch.raw_latent_shape[0]
         should_preprocess_for_wan_ti2v = should_apply_wan_ti2v(batch, server_args)
+
+        frame_timesteps = (batch.extra or {}).get("comfyui_frame_timesteps")
+        if frame_timesteps is not None:
+            return expand_comfyui_frame_timestep(
+                batch,
+                frame_timesteps,
+                target_dtype,
+                server_args.pipeline_config.dit_config.arch_config.patch_size,
+            )
 
         # expand timestep
         if should_preprocess_for_wan_ti2v:

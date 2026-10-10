@@ -1,0 +1,164 @@
+{
+  "1": {
+    "class_type": "SGLDOptions",
+    "inputs": {
+      "model_type": "wan2.1",
+      "enable_torch_compile": false,
+      "num_gpus": 1,
+      "tp_size": -1,
+      "sp_degree": -1,
+      "ulysses_degree": -1,
+      "ring_degree": -1,
+      "dp_size": 1,
+      "dp_degree": 1,
+      "enable_cfg_parallel": false,
+      "attention_backend": "",
+      "dit_layerwise_offload": false,
+      "enable_cache_dit": false,
+      "quantization": "",
+      "transformer_weights_path": "",
+      "transformer_2_weights_path": "",
+      "boundary_ratio": -1.0
+    }
+  },
+  "2": {
+    "class_type": "SGLDUNETLoader",
+    "inputs": {
+      "unet_name": "wan2.2_ti2v_5B_fp16.safetensors",
+      "weight_dtype": "default",
+      "sgld_options": [
+        "1",
+        0
+      ]
+    }
+  },
+  "3": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan",
+      "device": "default"
+    }
+  },
+  "4": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "wan2.2_vae.safetensors"
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "3",
+        0
+      ],
+      "text": "A curious raccoon exploring a sunlit forest stream, cinematic, shallow depth of field"
+    }
+  },
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "3",
+        0
+      ],
+      "text": "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards"
+    }
+  },
+  "7": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "8": {
+    "class_type": "Wan22ImageToVideoLatent",
+    "inputs": {
+      "vae": [
+        "4",
+        0
+      ],
+      "width": 1280,
+      "height": 704,
+      "length": 33,
+      "batch_size": 1,
+      "start_image": [
+        "7",
+        0
+      ]
+    }
+  },
+  "9": {
+    "class_type": "ModelSamplingSD3",
+    "inputs": {
+      "model": [
+        "2",
+        0
+      ],
+      "shift": 8.0
+    }
+  },
+  "10": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": [
+        "9",
+        0
+      ],
+      "seed": 42,
+      "steps": 20,
+      "cfg": 5.0,
+      "sampler_name": "uni_pc",
+      "scheduler": "simple",
+      "positive": [
+        "5",
+        0
+      ],
+      "negative": [
+        "6",
+        0
+      ],
+      "latent_image": [
+        "8",
+        0
+      ],
+      "denoise": 1.0
+    }
+  },
+  "40": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "10",
+        0
+      ],
+      "vae": [
+        "4",
+        0
+      ]
+    }
+  },
+  "41": {
+    "class_type": "CreateVideo",
+    "inputs": {
+      "images": [
+        "40",
+        0
+      ],
+      "fps": 16
+    }
+  },
+  "42": {
+    "class_type": "SaveVideo",
+    "inputs": {
+      "video": [
+        "41",
+        0
+      ],
+      "filename_prefix": "video/Wan2.2_TI2V_5B_sgld",
+      "format": "auto",
+      "codec": "auto"
+    }
+  }
+}

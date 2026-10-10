@@ -42,6 +42,7 @@ class SGLDOptions:
                         "flux",
                         "lumina2",
                         "minimax_h3",
+                        "wan2.1",
                     ],
                     {"default": "auto-detect"},
                 ),
@@ -97,6 +98,17 @@ class SGLDOptions:
                         "multiline": False,
                     },
                 ),
+                "transformer_2_weights_path": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": False,
+                    },
+                ),
+                "boundary_ratio": (
+                    "FLOAT",
+                    {"default": -1.0, "min": -1.0, "max": 1.0, "step": 0.005},
+                ),
             },
         }
 
@@ -122,6 +134,8 @@ class SGLDOptions:
         enable_cache_dit: bool = False,
         quantization: str = "",
         transformer_weights_path: str = "",
+        transformer_2_weights_path: str = "",
+        boundary_ratio: float = -1.0,
     ):
         """
         Build a dictionary of SGLang Diffusion runtime options.
@@ -159,6 +173,16 @@ class SGLDOptions:
             # Same selector as `sglang serve --transformer-weights-path`:
             # local .gguf, owner/repo/path/file.gguf, or owner/repo:QUANT.
             options["transformer_weights_path"] = transformer_weights_path
+
+        transformer_2_weights_path = (transformer_2_weights_path or "").strip()
+        if transformer_2_weights_path:
+            # Wan 2.2 A14B low-noise expert; transformer_weights_path or the
+            # loaded checkpoint is the high-noise expert.
+            options["transformer_2_weights_path"] = transformer_2_weights_path
+        if boundary_ratio >= 0:
+            # sigma fraction where the high-noise expert hands over; unset
+            # keeps the official 0.875 (T2V) / 0.9 (I2V).
+            options["boundary_ratio"] = boundary_ratio
 
         # Strip None to keep payload clean
         options = {k: v for k, v in options.items() if v is not None}

@@ -91,6 +91,7 @@ def _discover_checkpoint_specs() -> None:
         flux,
         minimax_h3,
         qwen_image,
+        wan,
         zimage,
     )
 
@@ -185,6 +186,109 @@ def _load_comfyui_gguf_transformer(
         model_cls.param_names_mapping = original_mapping
 
 
+def _load_comfyui_safetensors_transformer(
+    *,
+    model_path: str,
+    model_cls,
+    dit_config,
+    mapping: dict[str, Any],
+    spec: ComfyUICheckpointSpec,
+    server_args: ServerArgs,
+    param_dtype,
+):
+    # Only override the iterator when tensors need reshaping; leaving it None
+    # keeps the rank-local checkpoint fast path available.
+    weights_iterator = None
+    if spec.convert_weights is not None:
+        weights_iterator = spec.convert_weights(
+            safetensors_weights_iterator([model_path]), dit_config
+        )
+
+    quant_config = None
+    checkpoint_key_filter = None
+    weight_load_plan = None
+    # GGUF already sets AdaLN curve from tensor meta. Pruned BF16
+    # safetensors keep the same adaln_t_table; without this the DiT is
+    # built as the unpruned MLP and load fails on that extra parameter.
+    if spec.dit_cls_name == "MiniMaxH3DiTModel":
+        adaln_curve_shape, layer_markers = inspect_minimax_h3_safetensors([model_path])
+        if layer_markers:
+            if any(
+                marker.get("format") != "int8_tensorwise"
+                for marker in layer_markers.values()
+            ):
+                raise ValueError(
+                    "ComfyUI H3 integrated mode currently supports serialized INT8 ConvRot quantization"
+                )
+            if (
+                server_args.quantization is not None
+                or server_args.nunchaku_config is not None
+            ):
+                raise ValueError(
+                    "Checkpoint quantization is encoded in per-layer metadata; do not also set quantization or Nunchaku"
+                )
+            if server_args.should_use_fsdp_for_component("transformer"):
+                raise ValueError(
+                    "Comfy quantized checkpoints do not support FSDP inference; use TP and/or sequence parallelism instead"
+                )
+            quant_config = resolve_minimax_h3_checkpoint_quantization(layer_markers)
+            checkpoint_key_filter = comfy_quant_key_filter
+            checkpoint_device = (
+                torch.device("cpu")
+                if server_args.should_start_component_on_cpu("transformer")
+                else get_local_torch_device()
+            )
+            weight_load_plan = WeightLoadPlan(checkpoint_load_device=checkpoint_device)
+        if adaln_curve_shape is not None:
+            (
+                dit_config.arch_config.adaln_curve_grid,
+                dit_config.arch_config.time_embed_dim,
+            ) = adaln_curve_shape
+            logger.info(
+                "MiniMax-H3 ComfyUI checkpoint uses AdaLN curve %s",
+                adaln_curve_shape,
+            )
+
+    logger.info(
+        "Loading %s from ComfyUI checkpoint %s, param_dtype: %s",
+        spec.dit_cls_name,
+        model_path,
+        param_dtype,
+    )
+
+    # Weight loading reads param_names_mapping off the model, which inherits it
+    # from the class, so the ComfyUI names have to be visible for the whole load.
+    init_params = {"config": dit_config, "hf_config": {}}
+    if quant_config is not None:
+        init_params["quant_config"] = quant_config
+    original_mapping = model_cls.param_names_mapping
+    model_cls.param_names_mapping = mapping
+    try:
+        model = maybe_load_fsdp_model(
+            model_cls=model_cls,
+            init_params=init_params,
+            weight_dir_list=[model_path],
+            device=get_local_torch_device(),
+            hsdp_replicate_dim=server_args.hsdp_replicate_dim,
+            hsdp_shard_dim=server_args.hsdp_shard_dim,
+            component_starts_on_cpu=server_args.should_start_component_on_cpu(
+                "transformer"
+            ),
+            pin_cpu_memory=server_args.pin_cpu_memory,
+            fsdp_inference=server_args.should_use_fsdp_for_component("transformer"),
+            param_dtype=param_dtype,
+            reduce_dtype=torch.float32,
+            output_dtype=None,
+            strict=spec.strict,
+            weights_iterator=weights_iterator,
+            checkpoint_key_filter=checkpoint_key_filter,
+            weight_load_plan=weight_load_plan,
+        )
+    finally:
+        model_cls.param_names_mapping = original_mapping
+    return model
+
+
 def load_comfyui_transformer(
     pipeline: ComposedPipelineBase,
     server_args: ServerArgs,
@@ -197,10 +301,13 @@ def load_comfyui_transformer(
     ``--transformer-weights-path`` replaces only the DiT weights.
     """
     if loaded_modules is not None and "transformer" in loaded_modules:
-        return {
+        modules = {
             "transformer": loaded_modules["transformer"],
             "scheduler": pipeline.get_module("scheduler"),
         }
+        if "transformer_2" in loaded_modules:
+            modules["transformer_2"] = loaded_modules["transformer_2"]
+        return modules
 
     spec = get_comfyui_checkpoint_spec(pipeline.pipeline_name)
     if spec is None:
@@ -239,107 +346,51 @@ def load_comfyui_transformer(
             spec=spec,
         )
     else:
-        # Only override the iterator when tensors need reshaping; leaving it None
-        # keeps the rank-local checkpoint fast path available.
-        weights_iterator = None
-        if spec.convert_weights is not None:
-            weights_iterator = spec.convert_weights(
-                safetensors_weights_iterator([model_path]), dit_config
-            )
-
-        quant_config = None
-        checkpoint_key_filter = None
-        weight_load_plan = None
-        # GGUF already sets AdaLN curve from tensor meta. Pruned BF16
-        # safetensors keep the same adaln_t_table; without this the DiT is
-        # built as the unpruned MLP and load fails on that extra parameter.
-        if spec.dit_cls_name == "MiniMaxH3DiTModel":
-            adaln_curve_shape, layer_markers = inspect_minimax_h3_safetensors(
-                [model_path]
-            )
-            if layer_markers:
-                if any(
-                    marker.get("format") != "int8_tensorwise"
-                    for marker in layer_markers.values()
-                ):
-                    raise ValueError(
-                        "ComfyUI H3 integrated mode currently supports serialized INT8 ConvRot quantization"
-                    )
-                if (
-                    server_args.quantization is not None
-                    or server_args.nunchaku_config is not None
-                ):
-                    raise ValueError(
-                        "Checkpoint quantization is encoded in per-layer metadata; do not also set quantization or Nunchaku"
-                    )
-                if server_args.should_use_fsdp_for_component("transformer"):
-                    raise ValueError(
-                        "Comfy quantized checkpoints do not support FSDP inference; use TP and/or sequence parallelism instead"
-                    )
-                quant_config = resolve_minimax_h3_checkpoint_quantization(layer_markers)
-                checkpoint_key_filter = comfy_quant_key_filter
-                checkpoint_device = (
-                    torch.device("cpu")
-                    if server_args.should_start_component_on_cpu("transformer")
-                    else get_local_torch_device()
-                )
-                weight_load_plan = WeightLoadPlan(
-                    checkpoint_load_device=checkpoint_device
-                )
-            if adaln_curve_shape is not None:
-                (
-                    dit_config.arch_config.adaln_curve_grid,
-                    dit_config.arch_config.time_embed_dim,
-                ) = adaln_curve_shape
-                logger.info(
-                    "MiniMax-H3 ComfyUI checkpoint uses AdaLN curve %s",
-                    adaln_curve_shape,
-                )
-
-        logger.info(
-            "Loading %s from ComfyUI checkpoint %s, param_dtype: %s",
-            spec.dit_cls_name,
-            model_path,
-            param_dtype,
+        model = _load_comfyui_safetensors_transformer(
+            model_path=model_path,
+            model_cls=model_cls,
+            dit_config=dit_config,
+            mapping=mapping,
+            spec=spec,
+            server_args=server_args,
+            param_dtype=param_dtype,
         )
 
-        # Weight loading reads param_names_mapping off the model, which inherits it
-        # from the class, so the ComfyUI names have to be visible for the whole load.
-        init_params = {"config": dit_config, "hf_config": {}}
-        if quant_config is not None:
-            init_params["quant_config"] = quant_config
-        original_mapping = model_cls.param_names_mapping
-        model_cls.param_names_mapping = mapping
-        try:
-            model = maybe_load_fsdp_model(
-                model_cls=model_cls,
-                init_params=init_params,
-                weight_dir_list=[model_path],
-                device=get_local_torch_device(),
-                hsdp_replicate_dim=server_args.hsdp_replicate_dim,
-                hsdp_shard_dim=server_args.hsdp_shard_dim,
-                component_starts_on_cpu=server_args.should_start_component_on_cpu(
-                    "transformer"
-                ),
-                pin_cpu_memory=server_args.pin_cpu_memory,
-                fsdp_inference=server_args.should_use_fsdp_for_component("transformer"),
-                param_dtype=param_dtype,
-                reduce_dtype=torch.float32,
-                output_dtype=None,
-                strict=spec.strict,
-                weights_iterator=weights_iterator,
-                checkpoint_key_filter=checkpoint_key_filter,
-                weight_load_plan=weight_load_plan,
+    modules = {"transformer": model}
+    # Two-expert checkpoints (Wan 2.2 A14B): the low-noise expert is a second
+    # file with the same geometry; the denoiser picks the expert per timestep.
+    expert_2_path = server_args.component_weights_paths.get("transformer_2")
+    if expert_2_path:
+        if not is_comfyui_single_file(expert_2_path):
+            raise ValueError(
+                f"transformer_2 must be a single .safetensors file, got {expert_2_path!r}"
             )
-        finally:
-            model_cls.param_names_mapping = original_mapping
+        server_args.model_paths["transformer_2"] = os.path.dirname(expert_2_path) or "."
+        try:
+            modules["transformer_2"] = _load_comfyui_safetensors_transformer(
+                model_path=expert_2_path,
+                model_cls=model_cls,
+                dit_config=dit_config,
+                mapping=mapping,
+                spec=spec,
+                server_args=server_args,
+                param_dtype=param_dtype,
+            )
+        except (ValueError, RuntimeError) as exc:
+            raise ValueError(
+                f"transformer_2 checkpoint {expert_2_path!r} does not match the "
+                f"architecture of {model_path!r}; both experts must be the same "
+                f"model size and variant: {exc}"
+            ) from exc
 
-    for param in model.parameters():
-        param.requires_grad = False
+    for name, module in modules.items():
+        for param in module.parameters():
+            param.requires_grad = False
+        logger.info(
+            "Loaded %s with %.2fB parameters",
+            name,
+            sum(p.numel() for p in module.parameters()) / 1e9,
+        )
 
-    logger.info(
-        "Loaded transformer with %.2fB parameters",
-        sum(p.numel() for p in model.parameters()) / 1e9,
-    )
-
-    return {"transformer": model, "scheduler": pipeline.get_module("scheduler")}
+    modules["scheduler"] = pipeline.get_module("scheduler")
+    return modules

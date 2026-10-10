@@ -191,3 +191,30 @@ def blend_wan_ti2v_latents(
     return (
         1.0 - reserved_frames_mask.unsqueeze(0)
     ) * z + reserved_frames_mask.unsqueeze(0) * latents
+
+
+def expand_comfyui_frame_timestep(
+    batch: Req,
+    frame_timesteps: torch.Tensor,
+    target_dtype: torch.dtype,
+    patch_size: tuple[int, int, int],
+) -> torch.Tensor:
+    """Per-token timestep ``[B, tokens]`` from ComfyUI's per-frame ``[B, T]``.
+
+    ComfyUI gives already-conditioned frames a lower timestep. Frames are the
+    slowest-varying token axis, so each frame's value repeats over its
+    ``H' * W'`` patches. Under SP the latents are split along T, so this rank
+    keeps only its own frames.
+    """
+    _, patch_h, patch_w = patch_size
+    height, width = batch.raw_latent_shape[-2:]
+    tokens_per_frame = (height // patch_h) * (width // patch_w)
+
+    frame_timesteps = frame_timesteps.to(
+        device=get_local_torch_device(), dtype=target_dtype
+    )
+    if batch.did_sp_shard_latents and get_sp_world_size() > 1:
+        frames_per_rank = frame_timesteps.shape[1] // get_sp_world_size()
+        start = get_sp_parallel_rank() * frames_per_rank
+        frame_timesteps = frame_timesteps[:, start : start + frames_per_rank]
+    return frame_timesteps.repeat_interleave(tokens_per_frame, dim=1)
