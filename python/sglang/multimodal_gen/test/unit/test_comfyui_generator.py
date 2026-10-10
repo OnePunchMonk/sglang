@@ -3,6 +3,8 @@
 
 from types import SimpleNamespace
 
+import pytest
+
 from sglang.multimodal_gen.apps.ComfyUI_SGLDiffusion.core.generator import (
     SGLDiffusionGenerator,
 )
@@ -135,3 +137,149 @@ def test_generator_reports_real_runtime_import_error(caplog) -> None:
     with pytest.raises(RuntimeError, match="failed to import") as err:
         module.SGLDiffusionGenerator().init_generator("flux", "FluxPipeline", {})
     assert isinstance(err.value.__cause__, ImportError)
+
+
+def _status_runtime(alive=True):
+    from sglang.multimodal_gen.apps.ComfyUI_SGLDiffusion.worker_status import (
+        StepLatency,
+    )
+
+    runtime = SGLDiffusionGenerator()
+    runtime.model_path = "z.safetensors"
+    runtime._patcher = SimpleNamespace(model_type="zimage")
+    runtime.generator = SimpleNamespace(
+        server_args=SimpleNamespace(
+            pipeline_class_name="ZImagePipeline",
+            component_quantizations={},
+            **{
+                k: 1
+                for k in (
+                    "num_gpus tp_size sp_degree ulysses_degree ring_degree "
+                    "dp_size enable_cfg_parallel attention_backend "
+                    "dit_cpu_offload dit_layerwise_offload"
+                ).split()
+            },
+        )
+    )
+    runtime.executor = SimpleNamespace(step_latency=StepLatency())
+    runtime._worker_processes = lambda: [SimpleNamespace(pid=7, is_alive=lambda: alive)]
+    runtime._is_live = lambda: alive
+    runtime.last_options = {
+        "model_path": "z",
+        "sgld_options": {"hf_token": "abc", "tp_size": 2},
+    }
+    return runtime
+
+
+def test_step_latency_groups_cfg_calls_and_is_bounded() -> None:
+    from sglang.multimodal_gen.apps.ComfyUI_SGLDiffusion.worker_status import (
+        StepLatency,
+    )
+
+    tracker = StepLatency(window=3)
+    tracker.record(9.0, 1.0)
+    tracker.record(9.0, 1.0)
+    for i in range(2, 8):
+        tracker.record(1.0, float(i))
+        tracker.record(1.0, float(i))
+    stats = tracker.stats()
+    assert stats["first"] == 18.0
+    assert stats["mean"] == stats["p50"] == stats["p95"] == stats["last"] == 2.0
+    assert stats["calls_per_step"] == 2.0
+    assert stats["count"] == 7
+    before = tracker.stats()
+    assert tracker.stats() == before
+
+
+def test_step_latency_new_run_splits_equal_timesteps() -> None:
+    from sglang.multimodal_gen.apps.ComfyUI_SGLDiffusion.worker_status import (
+        StepLatency,
+    )
+
+    tracker = StepLatency()
+    tracker.record(5.0, 0.5)
+    tracker.begin_run()
+    tracker.record(1.0, 0.5)
+    tracker.begin_run()
+    tracker.record(3.0, 0.5)
+    stats = tracker.stats()
+    assert stats["count"] == 3
+    assert stats["mean"] == 2.0
+    assert stats["calls_per_step"] == 1.0
+
+
+def test_worker_status_node_show_without_worker(monkeypatch) -> None:
+    import importlib
+    import sys
+    import types
+
+    stub = types.ModuleType("folder_paths")
+    stub.folder_names_and_paths = {}
+    stub.get_filename_list = lambda name: []
+    monkeypatch.setitem(sys.modules, "folder_paths", stub)
+    try:
+        nodes = importlib.import_module(
+            "sglang.multimodal_gen.apps.ComfyUI_SGLDiffusion.nodes"
+        )
+    except ImportError as exc:
+        pytest.skip(f"nodes.py needs ComfyUI: {exc!r}")
+    from sglang.multimodal_gen.apps.ComfyUI_SGLDiffusion.executors.base import (
+        SGLDiffusionExecutor,
+    )
+
+    SGLDiffusionGenerator.reset_shared()
+    executor = SGLDiffusionExecutor.__new__(SGLDiffusionExecutor)
+    executor.step_latency = None
+    from sglang.multimodal_gen.apps.ComfyUI_SGLDiffusion.worker_status import (
+        StepLatency,
+    )
+
+    executor.step_latency = StepLatency()
+    model = SimpleNamespace(model=SimpleNamespace(diffusion_model=executor))
+    out = nodes.SGLDWorkerStatus().show(model, 0.0)
+    SGLDiffusionGenerator.reset_shared()
+    assert out["result"] == out["ui"]["text"]
+    assert "not started" in out["result"][0]
+
+
+def test_status_without_worker_does_not_crash() -> None:
+    from sglang.multimodal_gen.apps.ComfyUI_SGLDiffusion.worker_status import (
+        collect_status,
+        format_status,
+    )
+
+    text = format_status(collect_status(SGLDiffusionGenerator(), gpu_query=list))
+    assert "not started" in text
+    assert "unavailable" in text
+
+
+def test_status_reports_dead_worker_and_broken_gpu_query() -> None:
+    from sglang.multimodal_gen.apps.ComfyUI_SGLDiffusion.worker_status import (
+        collect_status,
+        format_status,
+    )
+
+    def boom():
+        raise OSError("no nvml")
+
+    text = format_status(collect_status(_status_runtime(alive=False), gpu_query=boom))
+    assert "NOT live" in text
+    assert "dead=[7]" in text
+    assert "VRAM unavailable" in text
+
+
+def test_speedup_only_with_baseline_and_secrets_stripped() -> None:
+    from sglang.multimodal_gen.apps.ComfyUI_SGLDiffusion.worker_status import (
+        collect_status,
+        format_status,
+    )
+
+    runtime = _status_runtime()
+    for i, value in enumerate((5.0, 0.5, 0.5)):
+        runtime.executor.step_latency.record(value, float(i))
+    status = collect_status(runtime, gpu_query=list)
+    assert "speedup" not in format_status(status)
+    assert "speedup vs native: 2.00x" in format_status(status, 1.0)
+    text = format_status(status)
+    assert "abc" not in text
+    assert "'tp_size': 2" in text
