@@ -1,12 +1,28 @@
 # SPDX-License-Identifier: Apache-2.0
-"""SGLDLoraLoader: chained LoRA nodes must keep every LoRA active."""
+"""SGLD LoRA: loader nodes and binding the sampled MODEL's LoRAs to the worker."""
 
+import copy
+import functools
 import sys
 import types
+from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest import mock
+from unittest.mock import Mock, patch
+
+import pytest
+import torch
+
+# Initialize the quantization registry before importing the LoRA layer modules.
+import sglang.multimodal_gen.runtime.layers.quantization  # noqa: F401
+from sglang.multimodal_gen.apps.ComfyUI_SGLDiffusion.executors.base import (
+    SGLDiffusionExecutor,
+)
+from sglang.multimodal_gen.runtime.layers.lora.linear import BaseLayerWithLoRA
+from sglang.multimodal_gen.runtime.pipelines_core.lora.pipeline import LoRAPipeline
 
 
+@functools.cache
 def _load_nodes():
     """Import the real nodes.py with the ComfyUI modules it needs stubbed."""
     folder_paths = types.ModuleType("folder_paths")
@@ -32,9 +48,12 @@ class _Model:
     def __init__(self, executor, patches=None):
         self.model = SimpleNamespace(diffusion_model=executor)
         self.patches = dict(patches or {})
+        self.model_options = {}
 
     def clone(self):
-        return _Model(self.model.diffusion_model, self.patches)
+        clone = _Model(self.model.diffusion_model, self.patches)
+        clone.model_options = copy.deepcopy(self.model_options)
+        return clone
 
 
 def test_chained_lora_nodes_keep_every_lora() -> None:
@@ -47,11 +66,11 @@ def test_chained_lora_nodes_keep_every_lora() -> None:
     (first,) = loader.load_lora(base, "style.safetensors", 1.0, nickname="style")
     (second,) = loader.load_lora(first, "detail.safetensors", 0.8, nickname="detail")
 
-    # The worker's set_lora replaces the active set, so the last call must
-    # carry both LoRAs.
-    assert calls[-1]["lora_nickname"] == ["style", "detail"]
-    assert calls[-1]["strength"] == [1.0, 0.8]
-    assert calls[-1]["lora_path"] == [
+    assert calls == []
+    desired = second.model_options["sgld_lora_input"]
+    assert desired["lora_nickname"] == ["style", "detail"]
+    assert desired["strength"] == [1.0, 0.8]
+    assert desired["lora_path"] == [
         "/loras/style.safetensors",
         "/loras/detail.safetensors",
     ]
@@ -59,24 +78,27 @@ def test_chained_lora_nodes_keep_every_lora() -> None:
     assert set(second.patches) == {"style", "detail"}
 
 
-def test_switching_and_dropping_loras_sends_exact_active_set() -> None:
+def test_switching_and_dropping_loras_keeps_exact_set_per_branch() -> None:
     nodes = _load_nodes()
     calls = []
     executor = SimpleNamespace(set_lora=lambda **kwargs: calls.append(kwargs))
     base = _Model(executor)
     loader = nodes.SGLDLoraLoader()
 
-    def names(call):
-        return call["lora_nickname"]
+    def names(model):
+        return model.model_options["sgld_lora_input"]["lora_nickname"]
+
+    def strengths(model):
+        return model.model_options["sgld_lora_input"]["strength"]
 
     (a,) = loader.load_lora(base, "a.safetensors", 1.0, nickname="a")
     (ab,) = loader.load_lora(a, "b.safetensors", 0.5, nickname="b")
     (abc,) = loader.load_lora(ab, "c.safetensors", 0.7, nickname="c")
-    assert names(calls[-1]) == ["a", "b", "c"]
+    assert names(abc) == ["a", "b", "c"]
 
-    # Reducing: a branch that stops after "a" must send only "a".
+    # Reducing: a branch that stops after "a" carries only "a".
     (a2,) = loader.load_lora(base, "a.safetensors", 1.0, nickname="a")
-    assert names(calls[-1]) == ["a"]
+    assert names(a2) == ["a"]
 
     # Switching: a different chain from the same base drops the earlier ones.
     (xy,) = loader.load_lora(
@@ -85,19 +107,129 @@ def test_switching_and_dropping_loras_sends_exact_active_set() -> None:
         0.3,
         nickname="y",
     )
-    assert names(calls[-1]) == ["x", "y"]
-    assert calls[-1]["strength"] == [1.0, 0.3]
+    assert names(xy) == ["x", "y"]
+    assert strengths(xy) == [1.0, 0.3]
 
     # Going back to an earlier chain restores exactly its set.
-    loader.load_lora(ab, "d.safetensors", 1.0, nickname="d")
-    assert names(calls[-1]) == ["a", "b", "d"]
+    (ab_d,) = loader.load_lora(ab, "d.safetensors", 1.0, nickname="d")
+    assert names(ab_d) == ["a", "b", "d"]
 
     # Re-applying the same nickname replaces its strength, not duplicates it.
     (a3,) = loader.load_lora(abc, "a.safetensors", 0.2, nickname="a")
-    assert names(calls[-1]) == ["a", "b", "c"]
-    assert calls[-1]["strength"] == [0.2, 0.5, 0.7]
+    assert names(a3) == ["a", "b", "c"]
+    assert strengths(a3) == [0.2, 0.5, 0.7]
 
-    # No branch leaked into the shared base or its siblings.
-    assert base.patches == {}
+    # Loader nodes never touch the shared worker, and no branch leaked into
+    # the shared base or its siblings.
+    assert calls == []
+    assert base.patches == {} and "sgld_lora_input" not in base.model_options
+    assert names(a) == ["a"] and names(ab) == ["a", "b"]
     assert set(a.patches) == {"a"} and set(ab.patches) == {"a", "b"}
     assert set(a2.patches) == {"a"} and set(xy.patches) == {"x", "y"}
+
+
+class _TupleLinear(torch.nn.Linear):
+    def forward(self, x):
+        return super().forward(x), None
+
+
+class _Pipeline(LoRAPipeline):
+    def create_pipeline_stages(self, args):
+        return None
+
+
+def _one_layer_pipeline():
+    """Identity 2x2 layer; adapter A adds to output 0 and B to output 1."""
+    linear = _TupleLinear(2, 2, bias=False)
+    linear.weight.data.copy_(torch.eye(2))
+    layer = BaseLayerWithLoRA(linear)
+    p = object.__new__(_Pipeline)
+    p.modules = {"transformer": torch.nn.Module()}
+    p.modules["transformer"].add_module("linear", layer)
+    p.server_args = SimpleNamespace(
+        lora_alpha=None, lora_merge_mode="merge", model_path="/model"
+    )
+    p.lora_initialized = True
+    p.lora_layers = {"linear": layer}
+    p.lora_layers_transformer_2, p.lora_layers_critic = {}, {}
+    p.cur_adapter_name, p.cur_adapter_path, p.cur_adapter_strength = {}, {}, {}
+    p.cur_adapter_config, p.is_lora_merged = {}, {}
+    p._temporarily_disable_offload = lambda *a, **k: nullcontext([])
+    p.loaded_adapter_paths = {"A": "/A", "B": "/B"}
+    p.loaded_adapter_alphas = {"A": None, "B": None}
+    p.lora_adapters = {
+        name: {
+            "linear.lora_A": torch.tensor([[1.0, 1.0]]),
+            "linear.lora_B": torch.tensor([[float(i == 0)], [float(i == 1)]]),
+        }
+        for i, name in enumerate("AB")
+    }
+    return p, layer
+
+
+def _executor(generator):
+    ex = object.__new__(SGLDiffusionExecutor)
+    torch.nn.Module.__init__(ex)
+    ex._ensure_runtime, ex._lora_input, ex._run_id = None, None, 0
+    ex.generator = generator
+    return ex
+
+
+def _lora_input(state):
+    return {
+        "lora_nickname": [name for name, _ in state],
+        "lora_path": [None] * len(state),
+        "strength": [strength for _, strength in state],
+        "target": ["transformer"] * len(state),
+    }
+
+
+def _sampler(state):
+    options = {"sgld_lora_input": _lora_input(state)} if state else {}
+    return SimpleNamespace(model_patcher=SimpleNamespace(model_options=options))
+
+
+def test_each_sampler_run_merges_exactly_its_models_loras() -> None:
+    """The worker is shared, so every run must leave only the LoRAs of the MODEL
+    it samples merged: adding, repeating, dropping and re-weighting a LoRA."""
+    p, layer = _one_layer_pipeline()
+    ex = _executor(p)
+    runs = [
+        [("A", 0.5)],
+        [("A", 0.5)],
+        [("A", 0.5), ("B", 0.25)],
+        [("B", 0.25)],
+        [("A", 1.0)],
+        [],
+    ]
+    with patch(
+        "sglang.multimodal_gen.runtime.pipelines_core.lora.pipeline.dist.get_rank",
+        return_value=0,
+    ):
+        for state in runs:
+            out = ex.sampler_sample_wrapper(
+                lambda *a, **k: layer(torch.ones(1, 2))[0], _sampler(state)
+            )
+            expected = torch.ones(1, 2)
+            for name, strength in state:
+                expected[0, "AB".index(name)] += 2 * strength
+            torch.testing.assert_close(out, expected, rtol=0, atol=0)
+
+
+def test_failed_lora_switch_is_not_recorded_as_active() -> None:
+    ex = _executor(Mock())
+    ex._lora_input = _lora_input([("A", 0.5)])
+    ex.generator.set_lora.side_effect = ValueError("bad adapter")
+    with pytest.raises(ValueError, match="bad adapter"):
+        ex.sampler_sample_wrapper(lambda *a: None, _sampler([("B", 0.5)]))
+    assert ex._lora_input is None
+    ex.generator.unmerge_lora_weights.assert_called_once()
+
+
+def test_chained_lora_targets_that_overlap_are_rejected() -> None:
+    """The worker keeps one group per overlapping target, so 'all' chained with
+    'transformer' would silently drop one LoRA."""
+    loader = _load_nodes().SGLDLoraLoader()
+    (first,) = loader.load_lora(_Model(None), "a.safetensors", 1.0, "a", "all")
+    with pytest.raises(ValueError, match="target 'all'"):
+        loader.load_lora(first, "b.safetensors", 1.0, "b", "transformer")
