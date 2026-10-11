@@ -129,6 +129,28 @@ def shutdown_scheduler_processes(
     _kill_alive_processes(alive, _WORKER_KILL_TIMEOUT_S)
 
 
+# Scheduler workers the caller started before importing this module (see
+# register_prespawned_schedulers). A spawned worker spends most of its start-up importing torch,
+# transformers, diffusers and sglang; starting it before the parent's own import of the same
+# stack lets the two imports run in parallel instead of back to back.
+_prespawned_scheduler_factories: list = []
+
+
+def register_prespawned_schedulers(factories) -> None:
+    """Register callables ``factory(args=..., name=...) -> process`` for already-running workers.
+
+    Each returned object must behave like a started-on-``start()`` ``multiprocessing.Process``
+    whose target is ``run_scheduler_process(*args)``. Unused factories are ignored.
+    """
+    _prespawned_scheduler_factories.extend(factories)
+
+
+def _new_scheduler_process(args: tuple, name: str):
+    if _prespawned_scheduler_factories:
+        return _prespawned_scheduler_factories.pop(0)(args=args, name=name)
+    return mp.Process(target=run_scheduler_process, args=args, name=name, daemon=True)
+
+
 def launch_server(server_args: ServerArgs, launch_http_server: bool = True):
     """
     Args:
@@ -176,8 +198,7 @@ def launch_server(server_args: ServerArgs, launch_http_server: bool = True):
         reader, writer = mp.Pipe(duplex=False)
         scheduler_pipe_writers.append(writer)
         if i == 0:  # This node's local pipe master
-            process = mp.Process(
-                target=run_scheduler_process,
+            process = _new_scheduler_process(
                 args=(
                     i,  # local_rank
                     rank,
@@ -190,11 +211,9 @@ def launch_server(server_args: ServerArgs, launch_http_server: bool = True):
                     result_pipes_from_slaves_r,
                 ),
                 name=f"sglang-diffusionWorker-{rank}",
-                daemon=True,
             )
         else:  # Slave workers
-            process = mp.Process(
-                target=run_scheduler_process,
+            process = _new_scheduler_process(
                 args=(
                     i,  # local_rank
                     rank,
@@ -207,7 +226,6 @@ def launch_server(server_args: ServerArgs, launch_http_server: bool = True):
                     result_pipes_from_slaves_w[i - 1],
                 ),
                 name=f"sglang-diffusionWorker-{rank}",
-                daemon=True,
             )
         scheduler_pipe_readers.append(reader)
         process.start()
