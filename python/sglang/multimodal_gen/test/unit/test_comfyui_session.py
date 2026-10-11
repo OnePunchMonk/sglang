@@ -292,6 +292,8 @@ def test_cond_key_repeat_still_uses_cache() -> None:
 class _RefAdapter(ComfyUIModelAdapter):
     """Qwen-Image-Edit shaped: text context plus a per-row reference latent."""
 
+    applied_conditioning = ("ref_latents",)
+
     def pack(self, x, timestep, context, ref_latents=None, **kwargs):
         return PackedForward(
             latents=x,

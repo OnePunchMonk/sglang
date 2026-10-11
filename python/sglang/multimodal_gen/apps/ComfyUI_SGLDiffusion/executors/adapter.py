@@ -41,6 +41,9 @@ class ComfyUIModelAdapter:
     # extra_req fields the worker caches per cond. Dropped on a cache hit and
     # hashed into the cond key, so the two lists cannot drift apart.
     cached_extra_keys: tuple[str, ...] = ("image_latent",)
+    # Conditioning apply_model kwargs this adapter forwards to the worker;
+    # the executor rejects the other content kwargs instead of dropping them.
+    applied_conditioning: tuple[str, ...] = ()
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
