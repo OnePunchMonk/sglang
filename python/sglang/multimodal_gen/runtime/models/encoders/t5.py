@@ -160,14 +160,14 @@ class T5LayerFF(nn.Module):
 class T5MultiHeadAttention(nn.Module):
     def forward(self, q, k, v, attn_bias=None):
         b, _, n, c = q.shape
-        attn = torch.einsum("binc,bjnc->bnij", q, k)
-        if attn_bias is not None:
-            attn += attn_bias
-
-        attn = F.softmax(attn.float(), dim=-1).type_as(attn)
-        x = torch.einsum("bnij,bjnc->binc", attn, v)
-        x = x.reshape(b, -1, n * c)
-        return x
+        x = F.scaled_dot_product_attention(
+            q.transpose(1, 2),
+            k.transpose(1, 2),
+            v.transpose(1, 2),
+            attn_mask=None if attn_bias is None else attn_bias.to(q.dtype),
+            scale=1.0,
+        )
+        return x.transpose(1, 2).reshape(b, -1, n * c)
 
 
 class T5Attention(nn.Module):

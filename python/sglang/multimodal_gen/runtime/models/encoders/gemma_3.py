@@ -337,27 +337,6 @@ class Gemma3Attention(nn.Module):
         key = k.transpose(1, 2)
         value = v.transpose(1, 2)
 
-        attn_mask = torch.ones(
-            (seq_len, seq_len),
-            device=hidden_states.device,
-            dtype=torch.bool,
-        )
-        causal = torch.triu(
-            torch.ones(
-                (seq_len, seq_len), device=hidden_states.device, dtype=torch.bool
-            ),
-            diagonal=1,
-        )
-        attn_mask = attn_mask.masked_fill(causal, False)
-        if self.is_sliding and self.sliding_window is not None:
-            idx = torch.arange(seq_len, device=hidden_states.device)
-            dist = idx[:, None] - idx[None, :]
-            too_far = dist > self.sliding_window
-            attn_mask = attn_mask.masked_fill(too_far, False)
-
-        attn_mask = attn_mask[None, None, :, :].expand(batch_size, 1, seq_len, seq_len)
-        attn_mask = attn_mask & attention_mask.to(torch.bool)[:, None, None, :]
-
         if query.shape[1] != key.shape[1]:
             num_key_value_groups = query.shape[1] // key.shape[1]
             key = key[:, :, None, :, :].expand(
@@ -377,7 +356,7 @@ class Gemma3Attention(nn.Module):
             query,
             key,
             value,
-            attn_mask=attn_mask,
+            attn_mask=attention_mask,
             dropout_p=0.0,
             is_causal=False,
             scale=self.scaling,
@@ -390,6 +369,18 @@ class Gemma3Attention(nn.Module):
 
         output, _ = self.o_proj(attn_output)
         return output
+
+
+def _causal_mask(
+    attention_mask: torch.Tensor, sliding_window: int | None
+) -> torch.Tensor:
+    """[batch, 1, seq, seq] bool mask, built once per forward for all layers."""
+    idx = torch.arange(attention_mask.shape[1], device=attention_mask.device)
+    dist = idx[:, None] - idx[None, :]
+    allowed = dist >= 0
+    if sliding_window is not None:
+        allowed = allowed & (dist <= sliding_window)
+    return allowed[None, None] & attention_mask.to(torch.bool)[:, None, None, :]
 
 
 class Gemma3DecoderLayer(nn.Module):
@@ -611,15 +602,19 @@ class Gemma3TextModel(nn.Module):
 
         all_hidden_states: tuple[Any, ...] | None = () if output_hidden_states else None
 
+        masks: dict[int | None, torch.Tensor] = {}
         for layer in self.layers:
             if all_hidden_states is not None:
                 all_hidden_states += (hidden_states,)
 
+            window = layer.self_attn.sliding_window
+            if window not in masks:
+                masks[window] = _causal_mask(attention_mask, window)
             hidden_states, residual = layer(
                 position_ids,
                 hidden_states,
                 residual,
-                attention_mask=attention_mask,
+                attention_mask=masks[window],
             )
 
         hidden_states = self.norm(hidden_states)

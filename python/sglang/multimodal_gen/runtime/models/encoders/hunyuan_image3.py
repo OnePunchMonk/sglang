@@ -4,6 +4,8 @@ import torch
 import torch.nn.functional as F
 from transformers import Siglip2VisionConfig
 
+from sglang.multimodal_gen.runtime.platforms import current_platform
+from sglang.srt.layers.attention.vision import VisionTritonAttention
 from sglang.srt.models.siglip2 import Siglip2Model
 
 
@@ -39,8 +41,10 @@ class HunyuanImage3VisionModel(Siglip2Model):
             qkv_backend="sdpa",
             use_data_parallel=True,
         )
+        # one varlen call over all images on CUDA; the per-image loop elsewhere
+        backend = VisionTritonAttention if current_platform.is_cuda() else _PerImageSDPA
         for layer in self.vision_model.encoder.layers:
-            layer.self_attn.attn.qkv_backend = _PerImageSDPA()
+            layer.self_attn.attn.qkv_backend = backend()
 
     def forward(self, pixel_values, attention_mask, spatial_shapes):
         batch_size, max_patches, _ = pixel_values.shape

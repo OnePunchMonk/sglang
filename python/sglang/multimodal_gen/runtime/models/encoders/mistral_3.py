@@ -47,7 +47,6 @@ from transformers.models.mistral3.modeling_mistral3 import (
 )
 from transformers.models.mistral.modeling_mistral import (
     MistralPreTrainedModel,
-    MistralRMSNorm,
     MistralRotaryEmbedding,
     apply_rotary_pos_emb,
 )
@@ -57,6 +56,7 @@ from sglang.multimodal_gen.runtime.distributed import (
     model_parallel_is_initialized,
 )
 from sglang.multimodal_gen.runtime.layers.attention import LocalAttention
+from sglang.multimodal_gen.runtime.layers.layernorm import RMSNorm
 from sglang.multimodal_gen.runtime.layers.linear import (
     ColumnParallelLinear,
     RowParallelLinear,
@@ -349,10 +349,8 @@ class MistralDecoderLayer(nn.Module):
             allow_cudnn_sdp=allow_cudnn_sdp,
         )
         self.mlp = MistralTPMLP(config)
-        self.input_layernorm = MistralRMSNorm(
-            config.hidden_size, eps=config.rms_norm_eps
-        )
-        self.post_attention_layernorm = MistralRMSNorm(
+        self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.post_attention_layernorm = RMSNorm(
             config.hidden_size, eps=config.rms_norm_eps
         )
 
@@ -411,7 +409,7 @@ class MistralModel(MistralPreTrainedModel):
                 for layer_idx in range(config.num_hidden_layers)
             ]
         )
-        self.norm = MistralRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.rotary_emb = MistralRotaryEmbedding(config=config)
         self.gradient_checkpointing = False
         self.post_init()
