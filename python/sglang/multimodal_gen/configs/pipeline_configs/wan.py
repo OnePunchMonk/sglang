@@ -23,7 +23,6 @@ from sglang.multimodal_gen.configs.models.vaes import WanVAEConfig
 from sglang.multimodal_gen.configs.pipeline_configs.base import (
     ModelTaskType,
     PipelineConfig,
-    TextConditioningOutput,
 )
 from sglang.multimodal_gen.configs.pipeline_configs.model_deployment_config import (
     ModelDeploymentConfig,
@@ -36,9 +35,7 @@ from sglang.multimodal_gen.runtime.utils.logging_utils import init_logger
 logger = init_logger(__name__)
 
 
-def t5_postprocess_text(
-    outputs: BaseEncoderOutput, _text_inputs
-) -> TextConditioningOutput:
+def t5_postprocess_text(outputs: BaseEncoderOutput, _text_inputs) -> torch.Tensor:
     mask: torch.Tensor = outputs.attention_mask
     hidden_state: torch.Tensor = outputs.last_hidden_state
     seq_lens = mask.gt(0).sum(dim=1).long()
@@ -51,10 +48,7 @@ def t5_postprocess_text(
         ],
         dim=0,
     )
-    prompt_embeds_mask = torch.arange(512, device=seq_lens.device) < seq_lens[:, None]
-    return TextConditioningOutput(
-        prompt_embeds_tensor, prompt_embeds_mask, seq_lens.tolist()
-    )
+    return prompt_embeds_tensor
 
 
 def animate2_postprocess_text(outputs: BaseEncoderOutput, text_inputs) -> torch.Tensor:
@@ -101,10 +95,6 @@ class WanT2V480PConfig(PipelineConfig):
     )
     postprocess_text_funcs: tuple[Callable[[BaseEncoderOutput], torch.Tensor], ...] = (
         field(default_factory=lambda: (t5_postprocess_text,))
-    )
-    # t5_postprocess_text zero-pads back to 512, so encode only the real tokens
-    text_encoder_extra_args: list[dict] = field(
-        default_factory=lambda: [dict(padding="longest")]
     )
 
     # Precision for each component
