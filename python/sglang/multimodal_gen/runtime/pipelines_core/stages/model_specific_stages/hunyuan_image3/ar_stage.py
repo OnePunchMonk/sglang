@@ -255,6 +255,7 @@ class HunyuanImage3AR(PipelineStage):
         vision_model,
         vision_aligner,
         max_cond_encode_chunk: int | None = None,
+        use_flash_segments: bool = False,
     ):
         super().__init__()
         self.ar_model = ar_model
@@ -266,6 +267,7 @@ class HunyuanImage3AR(PipelineStage):
         self._vision_aligner = vision_aligner
         # Initial cond-encode chunk cap from --batching-max-size.
         self._max_cond_encode_chunk = max_cond_encode_chunk
+        self._use_flash_segments = use_flash_segments
         self._custom_tokenizer = HunyuanImage3TokenizerWrapper(tokenizer)
         self._gen_config_cache: dict | None = None
         self._cache_dit_adapter = None
@@ -1267,7 +1269,11 @@ class HunyuanImage3AR(PipelineStage):
         prefix_len = _step_invariant_prefix_len(
             image_mask, timestep_index, tokenizer_output
         )
-        attn_segments = _attention_segments(tokenizer_output, tok["seq_len"])
+        attn_segments = (
+            _attention_segments(tokenizer_output, tok["seq_len"])
+            if self._use_flash_segments
+            else None
+        )
 
         scheduler = self._scheduler
         scheduler.set_timesteps(num_inference_steps)
