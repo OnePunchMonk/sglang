@@ -1,0 +1,98 @@
+✓ Initialized. View run at 
+https://modal.com/apps/onepunchmonk/main/ap-Qcw1Ov5wn5Hl4nxdCZqf9l
+Building image im-WHJ338CzScftCQKEudS99F
+Building image im-WHJ338CzScftCQKEudS99F
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 5.19s
+
+Built image im-WHJ338CzScftCQKEudS99F in 10.16s
+
+
+Image saved, took 4.41s
+
+Built image im-WHJ338CzScftCQKEudS99F in 13.96s
+
+
+Building image im-9Of5TnmiaZJvfHKW5PrUKA
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 4.28s
+
+Built image im-9Of5TnmiaZJvfHKW5PrUKA in 11.53s
+
+
+Building image im-yeCidQpbr6M592w0CUPIdl
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 5.55s
+
+Built image im-yeCidQpbr6M592w0CUPIdl in 8.12s
+
+
+✓ Created objects.
+├── 🔨 Created mount <local>
+├── 🔨 Created mount 
+│   <scratch>
+│   ratchpad/base/python/sglang
+├── 🔨 Created mount <local>
+├── 🔨 Created mount <local>
+├── 🔨 Created function prefetch.
+├── 🔨 Created function unit.
+└── 🔨 Created function bench.
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 13.0.3
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+WARNING: The NVIDIA Driver was not detected.  GPU functionality will not be available.
+   Use the NVIDIA Container Toolkit to start this container with GPU support; see
+   https://docs.nvidia.com/datacenter/cloud-native/ .
+
+
+[1AFetching 31 files:   0%|          | 0/31 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+
+[1AFetching 31 files:   3%|▎         | 1/31 [00:00<00:04,  7.08it/s]
+[1AFetching 31 files:  42%|████▏     | 13/31 [00:00<00:00, 59.79it/s]
+[1AFetching 31 files:  65%|██████▍   | 20/31 [00:03<00:02,  4.89it/s]
+[1AFetching 31 files:  65%|██████▍   | 20/31 [00:20<00:02,  4.89it/s]
+[1AFetching 31 files:  68%|██████▊   | 21/31 [00:24<00:19,  1.97s/it]
+[1AFetching 31 files:  71%|███████   | 22/31 [00:26<00:16,  1.88s/it]
+[1AFetching 31 files:  77%|███████▋  | 24/31 [00:40<00:13,  1.88s/it]
+[1AFetching 31 files:  81%|████████  | 25/31 [00:42<00:18,  3.04s/it]
+[1AFetching 31 files:  84%|████████▍ | 26/31 [01:31<00:44,  8.96s/it]
+[1AFetching 31 files:  87%|████████▋ | 27/31 [01:36<00:33,  8.27s/it]
+[1AFetching 31 files:  90%|█████████ | 28/31 [01:53<00:24,  8.27s/it]
+[1AFetching 31 files:  94%|█████████▎| 29/31 [02:16<00:23, 11.92s/it]
+[1AFetching 31 files:  97%|█████████▋| 30/31 [03:00<00:17, 17.61s/it]
+[1AFetching 31 files: 100%|██████████| 31/31 [03:14<00:00, 16.89s/it]
+[1AFetching 31 files: 100%|██████████| 31/31 [03:14<00:00,  6.26s/it]
+"/__modal/volumes/vo-p070jTluXORbS1zK8C06AV/hf/hub/models--Wan-AI--Wan2.2-Animate-2-14B-Diffusers/snapshots/7d48412d7b903ff3a89f4f5a960d99e1899605a1"
+Stopping app - local entrypoint completed.
+[modal-client] 2026-10-28T00:42:07+0530 Timed out waiting for final app logs.
+✓ App completed. View run at 
+https://modal.com/apps/onepunchmonk/main/ap-Qcw1Ov5wn5Hl4nxdCZqf9l

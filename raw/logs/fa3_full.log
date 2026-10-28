@@ -1,0 +1,70 @@
+✓ Initialized. View run at 
+https://modal.com/apps/onepunchmonk/main/ap-U8h0dQ66IbSOrqmTvNRj3C
+Building image im-sTuDyog3k0UGPw4wTF41dz
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 4.68s
+
+Built image im-sTuDyog3k0UGPw4wTF41dz in 9.99s
+
+
+Building image im-VvVdmy8BCV9q0uxRB5z0hM
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 3.85s
+
+Built image im-VvVdmy8BCV9q0uxRB5z0hM in 5.81s
+
+
+✓ Created objects.
+├── 🔨 Created mount <local>
+├── 🔨 Created mount 
+│   <local>
+├── 🔨 Created mount 
+│   <local>
+│   ng
+├── 🔨 Created mount 
+│   <local>
+└── 🔨 Created function full.
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 13.0.3
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+{
+ "driving_video": "{\n    \"programs\": [\n\n    ],\n    \"streams\": [\n        {\n            \"width\": 1920,\n            \"height\": 1080,\n            \"r_frame_rate\": \"30/1\",\n            \"duration\": \"3.533333\",\n            \"nb_frames\": \"106\"\n        }\n    ]\n}\n",
+ "gpu": "NVIDIA H100 80GB HBM3, 610.57.04, 81559 MiB",
+ "unit_tests_h100": [
+  0,
+  "...........................................                              [100%]\n43 passed in 29.96s\n"
+ ],
+ "head": "{\"name\": \"head\", \"load_s\": 62.008110642000005, \"wall_s\": 263.70773194, \"gen_s\": 0.0, \"peak_MB\": 41110.0, \"size\": [800, 640, 1], \"torch_max_reserved_MB\": 0.0, \"metrics\": {\"stages\": {\"Scheduler.return_result.spill_arrays\": 0.435444999993706, \"Scheduler.return_result.spill_cuda\": 0.03992999995716673, \"SchedulerClient.materialize_file_refs\": 0.008359999981166766}, \"total_duration_ms\": 263232.219689, \"warmup_failed\": false, \"memory_snapshots\": {\"before_forward\": {\"allocated_mb\": 1737.41, \"reserved_mb\": 1776.0, \"peak_allocated_mb\": 1737.41, \"peak_reserved_mb\": 1776.0, \"peak_host_anon_mb\": 0.0}, \"after_forward\": {\"allocated_mb\": 1080.59, \"reserved_mb\": 3186.0, \"peak_allocated_mb\": 23712.74, \"peak_reserved_mb\": 41110.0, \"peak_host_anon_mb\": 0.0}}}}",
+ "head_log_tail": "ort`.\n  warnings.warn(\n\nLoading required modules:  57%|\u2588\u2588\u2588\u2588\u2588\u258b    | 4/7 [00:11<00:06,  2.05s/it]\nLoading required modules:  71%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258f  | 5/7 [00:13<00:03,  1.94s/it]\nLoading required modules: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 7/7 [00:13<00:00,  1.89s/it]\n\n  0%|          | 0/40 [00:00<?, ?it/s]\n  2%|\u258e         | 1/40 [00:08<05:28,  8.41s/it]\n  5%|\u258c         | 2/40 [00:14<04:17,  6.76s/it]\n  8%|\u258a         | 3/40 [00:19<03:51,  6.25s/it]\n 10%|\u2588         | 4/40 [00:25<03:36,  6.01s/it]\n 12%|\u2588\u258e        | 5/40 [00:30<03:25,  5.88s/it]\n 15%|\u2588\u258c        | 6/40 [00:36<03:17,  5.81s/it]\n 18%|\u2588\u258a        | 7/40 [00:42<03:10,  5.76s/it]\n 20%|\u2588\u2588        | 8/40 [00:47<03:03,  5.72s/it]\n 22%|\u2588\u2588\u258e       | 9/40 [00:53<02:56,  5.70s/it]\n 25%|\u2588\u2588\u258c       | 10/40 [00:59<02:50,  5.68s/it]\n 28%|\u2588\u2588\u258a       | 11/40 [01:04<02:44,  5.68s/it]\n 30%|\u2588\u2588\u2588       | 12/40 [01:10<02:38,  5.67s/it]\n 32%|\u2588\u2588\u2588\u258e      | 13/40 [01:16<02:33,  5.67s/it]\n 35%|\u2588\u2588\u2588\u258c      | 14/40 [01:21<02:27,  5.67s/it]\n 38%|\u2588\u2588\u2588\u258a      | 15/40 [01:27<02:21,  5.67s/it]\n 40%|\u2588\u2588\u2588\u2588      | 16/40 [01:33<02:15,  5.66s/it]\n 42%|\u2588\u2588\u2588\u2588\u258e     | 17/40 [01:38<02:10,  5.66s/it]\n 45%|\u2588\u2588\u2588\u2588\u258c     | 18/40 [01:44<02:04,  5.66s/it]\n 48%|\u2588\u2588\u2588\u2588\u258a     | 19/40 [01:50<01:58,  5.66s/it]\n 50%|\u2588\u2588\u2588\u2588\u2588     | 20/40 [01:55<01:53,  5.66s/it]\n 52%|\u2588\u2588\u2588\u2588\u2588\u258e    | 21/40 [02:01<01:47,  5.65s/it]\n 55%|\u2588\u2588\u2588\u2588\u2588\u258c    | 22/40 [02:07<01:41,  5.66s/it]\n 57%|\u2588\u2588\u2588\u2588\u2588\u258a    | 23/40 [02:12<01:36,  5.65s/it]\n 60%|\u2588\u2588\u2588\u2588\u2588\u2588    | 24/40 [02:18<01:30,  5.65s/it]\n 62%|\u2588\u2588\u2588\u2588\u2588\u2588\u258e   | 25/40 [02:24<01:24,  5.65s/it]\n 65%|\u2588\u2588\u2588\u2588\u2588\u2588\u258c   | 26/40 [02:29<01:19,  5.66s/it]\n 68%|\u2588\u2588\u2588\u2588\u2588\u2588\u258a   | 27/40 [02:35<01:13,  5.66s/it]\n 70%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588   | 28/40 [02:41<01:07,  5.66s/it]\n 72%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258e  | 29/40 [02:46<01:02,  5.66s/it]\n 75%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c  | 30/40 [02:52<00:56,  5.66s/it]\n 78%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a  | 31/40 [02:58<00:51,  5.68s/it]\n 80%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  | 32/40 [03:03<00:45,  5.67s/it]\n 82%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258e | 33/40 [03:09<00:39,  5.66s/it]\n 85%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c | 34/40 [03:15<00:33,  5.66s/it]\n 88%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a | 35/40 [03:20<00:28,  5.65s/it]\n 90%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588 | 36/40 [03:26<00:22,  5.66s/it]\n 92%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258e| 37/40 [03:32<00:16,  5.65s/it]\n 95%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c| 38/40 [03:37<00:11,  5.65s/it]\n 98%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a| 39/40 [03:43<00:05,  5.65s/it]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 40/40 [03:48<00:00,  5.65s/it]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 40/40 [03:48<00:00,  5.72s/it]\n/opt/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/multiprocessing/resource_tracker.py:279: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown\n  warnings.warn('resource_tracker: There appear to be %d '\n",
+ "head_flex_autotune_lines": 0,
+ "head_s_per_it_last": "5.72",
+ "main": "{\"name\": \"main\", \"load_s\": 55.08303804999997, \"wall_s\": 441.373353026, \"gen_s\": 0.0, \"peak_MB\": 58458.0, \"size\": [800, 640, 1], \"torch_max_reserved_MB\": 0.0, \"metrics\": {\"stages\": {\"Scheduler.return_result.spill_arrays\": 0.21422299994355853, \"Scheduler.return_result.spill_cuda\": 0.03554700003860489, \"SchedulerClient.materialize_file_refs\": 0.006206999955793435}, \"total_duration_ms\": 440917.630379, \"warmup_failed\": false, \"memory_snapshots\": {\"before_forward\": {\"allocated_mb\": 1737.41, \"reserved_mb\": 1776.0, \"peak_allocated_mb\": 1737.41, \"peak_reserved_mb\": 1776.0, \"peak_host_anon_mb\": 0.0}, \"after_forward\": {\"allocated_mb\": 1079.89, \"reserved_mb\": 8898.0, \"peak_allocated_mb\": 32197.96, \"peak_reserved_mb\": 58458.0, \"peak_host_anon_mb\": 0.0}}}}",
+ "main_log_tail": "_SCALE=0.08838834764831843, SPARSE_KV_BLOCK_SIZE=128, SPARSE_Q_BLOCK_SIZE=128, USE_TMA=False, V_HEAD_DIM=128, V_HEAD_DIM_ROUNDED=128, WRITE_DQ=True, num_stages=3, num_warps=4\nSingleProcess AUTOTUNE benchmarking takes 22.8867 seconds and 2.3318 seconds precompiling for 7 choices\n\n  2%|\u258e         | 1/40 [00:38<24:43, 38.05s/it]\n  5%|\u258c         | 2/40 [00:46<12:56, 20.45s/it]\n  8%|\u258a         | 3/40 [00:55<09:35, 15.56s/it]\n 10%|\u2588         | 4/40 [01:05<07:57, 13.26s/it]\n 12%|\u2588\u258e        | 5/40 [01:15<06:59, 12.00s/it]\n 15%|\u2588\u258c        | 6/40 [01:25<06:21, 11.23s/it]\n 18%|\u2588\u258a        | 7/40 [01:34<05:54, 10.75s/it]\n 20%|\u2588\u2588        | 8/40 [01:44<05:33, 10.44s/it]\n 22%|\u2588\u2588\u258e       | 9/40 [01:54<05:17, 10.23s/it]\n 25%|\u2588\u2588\u258c       | 10/40 [02:04<05:02, 10.09s/it]\n 28%|\u2588\u2588\u258a       | 11/40 [02:14<04:49, 10.00s/it]\n 30%|\u2588\u2588\u2588       | 12/40 [02:23<04:38,  9.93s/it]\n 32%|\u2588\u2588\u2588\u258e      | 13/40 [02:33<04:26,  9.88s/it]\n 35%|\u2588\u2588\u2588\u258c      | 14/40 [02:43<04:15,  9.84s/it]\n 38%|\u2588\u2588\u2588\u258a      | 15/40 [02:53<04:05,  9.82s/it]\n 40%|\u2588\u2588\u2588\u2588      | 16/40 [03:02<03:55,  9.80s/it]\n 42%|\u2588\u2588\u2588\u2588\u258e     | 17/40 [03:12<03:45,  9.79s/it]\n 45%|\u2588\u2588\u2588\u2588\u258c     | 18/40 [03:22<03:35,  9.78s/it]\n 48%|\u2588\u2588\u2588\u2588\u258a     | 19/40 [03:32<03:25,  9.78s/it]\n 50%|\u2588\u2588\u2588\u2588\u2588     | 20/40 [03:41<03:15,  9.77s/it]\n 52%|\u2588\u2588\u2588\u2588\u2588\u258e    | 21/40 [03:51<03:05,  9.77s/it]\n 55%|\u2588\u2588\u2588\u2588\u2588\u258c    | 22/40 [04:01<02:55,  9.77s/it]\n 57%|\u2588\u2588\u2588\u2588\u2588\u258a    | 23/40 [04:11<02:45,  9.76s/it]\n 60%|\u2588\u2588\u2588\u2588\u2588\u2588    | 24/40 [04:20<02:36,  9.76s/it]\n 62%|\u2588\u2588\u2588\u2588\u2588\u2588\u258e   | 25/40 [04:30<02:26,  9.76s/it]\n 65%|\u2588\u2588\u2588\u2588\u2588\u2588\u258c   | 26/40 [04:40<02:16,  9.76s/it]\n 68%|\u2588\u2588\u2588\u2588\u2588\u2588\u258a   | 27/40 [04:50<02:07,  9.77s/it]\n 70%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588   | 28/40 [05:00<01:57,  9.78s/it]\n 72%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258e  | 29/40 [05:09<01:47,  9.78s/it]\n 75%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c  | 30/40 [05:19<01:37,  9.79s/it]\n 78%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a  | 31/40 [05:29<01:28,  9.78s/it]\n 80%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  | 32/40 [05:39<01:18,  9.78s/it]\n 82%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258e | 33/40 [05:48<01:08,  9.78s/it]\n 85%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c | 34/40 [05:58<00:58,  9.78s/it]\n 88%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a | 35/40 [06:08<00:48,  9.78s/it]\n 90%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588 | 36/40 [06:18<00:39,  9.77s/it]\n 92%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258e| 37/40 [06:28<00:29,  9.77s/it]\n 95%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c| 38/40 [06:37<00:19,  9.77s/it]\n 98%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a| 39/40 [06:47<00:09,  9.76s/it]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 40/40 [06:57<00:00,  9.75s/it]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 40/40 [06:57<00:00, 10.43s/it]\n/opt/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/multiprocessing/resource_tracker.py:279: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown\n  warnings.warn('resource_tracker: There appear to be %d '\n",
+ "main_flex_autotune_lines": 2,
+ "main_s_per_it_last": "10.43",
+ "quality": "Traceback (most recent call last):\n  File \"<string>\", line 3, in <module>\n  File \"/opt/sglang/lib/python3.12/site-packages/numpy/lib/_npyio_impl.py\", line 483, in load\n    return format.read_array(fid, allow_pickle=allow_pickle,\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/sglang/lib/python3.12/site-packages/numpy/lib/_format_impl.py\", line 833, in read_array\n    raise ValueError(\"Object arrays cannot be loaded when \"\nValueError: Object arrays cannot be loaded when allow_pickle=False\n"
+}
+Stopping app - local entrypoint completed.
+Runner terminated.
+✓ App completed. View run at 
+https://modal.com/apps/onepunchmonk/main/ap-U8h0dQ66IbSOrqmTvNRj3C

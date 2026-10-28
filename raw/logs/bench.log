@@ -1,0 +1,38 @@
+✓ Initialized. View run at 
+https://modal.com/apps/onepunchmonk/main/ap-a09S17sC8xoqlA9db17nPQ
+Building image im-Hmw0lYdpLrkuGG1FXmqPDt
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 6.12s
+
+Built image im-Hmw0lYdpLrkuGG1FXmqPDt in 9.35s
+
+
+✓ Created objects.
+├── 🔨 Created mount <local>
+├── 🔨 Created mount 
+│   <scratch>
+│   ratchpad/base/python/sglang
+├── 🔨 Created mount <local>
+├── 🔨 Created mount <local>
+├── 🔨 Created function prefetch.
+├── 🔨 Created function unit.
+└── 🔨 Created function bench.
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 13.0.3
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+

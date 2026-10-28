@@ -1,0 +1,14 @@
+{
+ "base": [
+  0,
+  ".............................                                            [100%]\n29 passed in 16.37s\n"
+ ],
+ "head": [
+  0,
+  "..............................                                           [100%]\n30 passed in 11.78s\n"
+ ],
+ "head_tests_on_base": [
+  2,
+  "\n==================================== ERRORS ====================================\n_ ERROR collecting sglang/multimodal_gen/test/unit/test_wan_animate_2_parallelism.py _\nImportError while importing test module '/root/base/sglang/multimodal_gen/test/unit/test_wan_animate_2_parallelism.py'.\nHint: make sure your test modules/packages have valid Python names.\nTraceback:\n/opt/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/importlib/__init__.py:90: in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nsglang/multimodal_gen/test/unit/test_wan_animate_2_parallelism.py:27: in <module>\n    from sglang.multimodal_gen.runtime.models.dits.wan_animate_2_block import (\nE   ImportError: cannot import name '_pad_reference_video_kv' from 'sglang.multimodal_gen.runtime.models.dits.wan_animate_2_block' (/root/base/sglang/multimodal_gen/runtime/models/dits/wan_animate_2_block.py)\n------------------------------- Captured stderr --------------------------------\nFlax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.\nFlax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.\n=========================== short test summary info ============================\nERROR sglang/multimodal_gen/test/unit/test_wan_animate_2_parallelism.py\n!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!\n1 error in 5.78s\n"
+ ]
+}
