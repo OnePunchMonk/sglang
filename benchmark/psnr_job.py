@@ -10,7 +10,7 @@ def psnr():
         c = av.open(p); s = c.streams.video[0]
         meta = {"fps": float(s.average_rate), "w": s.width, "h": s.height}
         return np.stack([f.to_ndarray(format="rgb24") for f in c.decode(video=0)]).astype(np.float64), meta
-    a, ma = frames("/vol/videos_full/main.mp4"); b, mb = frames("/vol/videos_full/head.mp4")
+    a, ma = frames("/vol/videos_fa3b/main.mp4"); b, mb = frames("/vol/videos_fa3b/head.mp4")
     n = min(len(a), len(b))
     per = [10 * np.log10(255**2 / max(((x - y) ** 2).mean(), 1e-12)) for x, y in zip(a[:n], b[:n])]
     # Temporal consistency proxy: mean abs frame-to-frame change, per video.
@@ -22,4 +22,4 @@ def psnr():
 
 @app.local_entrypoint()
 def main():
-    out = psnr.remote(); print(json.dumps(out, indent=1)); json.dump(out, open("psnr_out.json", "w"), indent=1)
+    out = psnr.remote(); print(json.dumps(out, indent=1)); json.dump(out, open("psnr_fa3_out.json", "w"), indent=1)

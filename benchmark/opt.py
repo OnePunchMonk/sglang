@@ -10,7 +10,7 @@ import json
 
 import modal
 
-T = "<path to trees: main/ and headfull/ python/sglang + inputs/>"
+T = "<path to trees>"
 MODEL_ID = "Wan-AI/Wan2.2-Animate-2-14B-Diffusers"
 
 app = modal.App("wan-animate2-opt")
@@ -140,9 +140,9 @@ def opt():
 def gifs():
     import subprocess
 
-    os_dir = "/vol/videos_full"
+    os_dir = "/vol/videos_fa3b"
     vf = ("[0:v]drawtext=text='main 41fb719':x=10:y=10:fontsize=24:fontcolor=white:box=1:boxcolor=black@0.6[a];"
-          "[1:v]drawtext=text='this PR (FP8 ref KV)':x=10:y=10:fontsize=24:fontcolor=white:box=1:boxcolor=black@0.6[b];"
+          "[1:v]drawtext=text='this PR (FA3 split + FP8 ref KV)':x=10:y=10:fontsize=24:fontcolor=white:box=1:boxcolor=black@0.6[b];"
           "[a][b]hstack,fps=8,scale=960:-1:flags=lanczos,split[x][y];[y]palettegen=max_colors=128[p];[x][p]paletteuse")
     p = subprocess.run(["ffmpeg", "-y", "-i", f"{os_dir}/main.mp4", "-i", f"{os_dir}/head.mp4",
                         "-filter_complex", vf, f"{os_dir}/side_by_side.gif"], capture_output=True, text=True)

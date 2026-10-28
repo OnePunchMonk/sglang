@@ -10,10 +10,10 @@ import json
 
 import modal
 
-S = "<path to trees: main/ and headfull/ python/sglang + inputs/>"
+S = "<path to trees>"
 MODEL_ID = "Wan-AI/Wan2.2-Animate-2-14B-Diffusers"
 
-app = modal.App("wan-animate2-full")
+app = modal.App("wan-animate2-fa3")
 vol = modal.Volume.from_name("wan-animate2-refkv")
 image = (
     modal.Image.from_registry("lmsysorg/sglang:dev")
@@ -35,7 +35,7 @@ r = gen.generate(sampling_params_kwargs=dict(
     prompt="视频中的人在做动作",  # official demo prompt
     image_path="/root/inputs/image.jpeg", video_path="/root/inputs/video.mp4",
     width=640, height=800, num_inference_steps=40, clip_len=77, seed=42,
-    save_output=True, output_path="/vol/videos_full", output_file_name=f"{name}.mp4", return_frames=True))
+    save_output=True, output_path="/vol/videos_fa3b", output_file_name=f"{name}.mp4", return_frames=True))
 r = r[0] if isinstance(r, list) else r
 wall = time.perf_counter() - t
 import numpy as np
@@ -59,6 +59,7 @@ print(json.dumps({"shape": list(a.shape), "psnr_mean_db": float(np.mean(per)), "
 @app.function(image=image, gpu="H100", cpu=8, memory=131072, timeout=7200, volumes={"/vol": vol})
 def full():
     import os
+    import re
     import subprocess
     import sys
 
@@ -69,12 +70,21 @@ def full():
     res["driving_video"] = p.stdout or p.stderr
     res["gpu"] = subprocess.run(["nvidia-smi", "--query-gpu=name,driver_version,memory.total", "--format=csv,noheader"],
                                 capture_output=True, text=True).stdout.strip()
-    for name, root, fp8 in (("main", "/root/main", "false"), ("head", "/root/head", "true")):
+    p = subprocess.run([sys.executable, "-m", "pytest", "-q", "-W", "ignore", "--tb=short", "-p", "no:cacheprovider",
+                        "sglang/multimodal_gen/test/unit/test_wan_animate_2_parallelism.py"],
+                       env=dict(os.environ, PYTHONPATH="/root/head"), cwd="/root/head", capture_output=True, text=True)
+    res["unit_tests_h100"] = (p.returncode, p.stdout[-2500:])
+    if p.returncode != 0:
+        return res
+    # head first: with a cold inductor cache, any flex fallback in head would print AUTOTUNE lines.
+    for name, root, fp8 in (("head", "/root/head", "true"), ("main", "/root/main", "false")):
         env = dict(os.environ, PYTHONPATH=root, HF_HOME="/vol/hf", MODEL=MODEL_ID,
                    SGLANG_DIFFUSION_WAN_ANIMATE_2_FP8_REFERENCE_KV=fp8)
         p = subprocess.run([sys.executable, "-c", RUN, name], env=env, cwd=root, capture_output=True, text=True)
         res[name] = p.stdout.strip().splitlines()[-1] if p.returncode == 0 else p.stderr[-5000:]
         res[f"{name}_log_tail"] = p.stderr[-2500:]
+        res[f"{name}_flex_autotune_lines"] = p.stderr.count("AUTOTUNE")
+        res[f"{name}_s_per_it_last"] = (re.findall(r"40/40 \[[^,]*,\s*([\d.]+)s/it\]", p.stderr) or [None])[-1]
     p = subprocess.run([sys.executable, "-c", PSNR], capture_output=True, text=True)
     res["quality"] = p.stdout.strip() or p.stderr[-2000:]
     vol.commit()
@@ -85,5 +95,5 @@ def full():
 def main():
     out = full.remote()
     print(json.dumps(out, indent=1, default=str))
-    with open(__file__.replace("full.py", "full_out.json"), "w") as f:
+    with open(__file__.replace("full.py", "fa3_full_out.json"), "w") as f:
         json.dump(out, f, indent=1, default=str)

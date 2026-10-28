@@ -1,0 +1,21 @@
+{
+ "main": {
+  "fps": 16.0,
+  "w": 944,
+  "h": 528,
+  "frames": 56,
+  "temporal_mad": 2.742620153771926
+ },
+ "head": {
+  "fps": 16.0,
+  "w": 944,
+  "h": 528,
+  "frames": 56,
+  "temporal_mad": 2.7485840808897914
+ },
+ "psnr_mean_db": 40.39264888509167,
+ "psnr_min_frame_db": 35.95537487639262,
+ "psnr_max_frame_db": 42.38857212468447,
+ "mean_abs_diff": 1.3111638455338799,
+ "bitwise_equal_decoded": false
+}
