@@ -5,6 +5,9 @@ from sglang.multimodal_gen import envs
 from sglang.multimodal_gen.runtime.loader.weight_readers.base import (
     WeightReader,
 )
+from sglang.multimodal_gen.runtime.loader.weight_readers.parallel_pread import (
+    ParallelPreadWeightReader,
+)
 from sglang.multimodal_gen.runtime.loader.weight_readers.runai_streamer import (
     RunaiStreamerReader,
 )
@@ -16,7 +19,11 @@ from sglang.multimodal_gen.runtime.utils.logging_utils import init_logger
 logger = init_logger(__name__)
 
 # The fallback is last and always available, so selection cannot come up empty.
-_READERS: tuple[type, ...] = (RunaiStreamerReader, SafetensorsMmapReader)
+_READERS: tuple[type, ...] = (
+    ParallelPreadWeightReader,
+    RunaiStreamerReader,
+    SafetensorsMmapReader,
+)
 FALLBACK_READER = SafetensorsMmapReader
 
 
@@ -67,6 +74,7 @@ def select_weight_reader(
 
 __all__ = [
     "FALLBACK_READER",
+    "ParallelPreadWeightReader",
     "RunaiStreamerReader",
     "SafetensorsMmapReader",
     "WeightReader",
