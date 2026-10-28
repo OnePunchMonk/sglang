@@ -24,6 +24,7 @@ Every run is listed below, including stopped, failed and discarded ones.
 | 13 | Follow-up: distilled checkpoint, head (FP8 off) then main, 10 steps, guidance 1.0; base head FA3 only (FP8 off) | done; exposed the +6.3 GB cache-padding regression | `followup/followup_out.json`, `raw/logs/followup.log` |
 | 14 | Fix `3412e3b616` (cache sized to the clip): H100 tests 43 passed (after one test-assertion fix), FA3-only rerun | done | `followup/followup_fix_out.json`, `raw/logs/followup_fix.log` |
 | 15 | FP8 rerun with the fix | done | `followup/followup_fp8_out.json`, `raw/logs/followup_fp8.log` |
+| 16 | PSNR (CPU): FA3-only (FP8 off) vs main, base checkpoint; distilled head vs distilled main. main mp4 is bitwise identical across two runs (md5 `6335ac1f`) | done | `followup/psnr_fa3_only_out.json`, `followup/psnr_distilled_out.json` |
 
 ## Runs whose output was not saved to a file (recorded from the session)
 
