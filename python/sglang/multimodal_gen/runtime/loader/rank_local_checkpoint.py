@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import time
 from collections import defaultdict
 from collections.abc import Callable
 from contextlib import ExitStack
@@ -12,12 +13,17 @@ import torch.distributed.tensor as dist_tensor
 from safetensors.torch import safe_open
 from torch.distributed.fsdp import FSDPModule
 
+from sglang.multimodal_gen import envs
 from sglang.multimodal_gen.runtime.distributed import get_tp_rank, get_tp_world_size
 from sglang.multimodal_gen.runtime.layers.linear import (
     ColumnParallelLinear,
     MergedColumnParallelLinear,
     ReplicatedLinear,
     RowParallelLinear,
+)
+from sglang.multimodal_gen.runtime.loader.parallel_safetensors import (
+    ParallelPreadReader,
+    ParallelSliceHandle,
 )
 from sglang.multimodal_gen.runtime.loader.weight_utils import _scan_safetensors_files
 from sglang.multimodal_gen.runtime.utils.logging_utils import init_logger
@@ -401,6 +407,7 @@ def try_load_rank_local_tp_state_dict(
     model: torch.nn.Module,
     weight_files: list[str],
     param_names_mapping: Callable[[str], tuple[str, Any, Any]],
+    device: torch.device | None = None,
 ) -> (
     tuple[
         dict[str, LocalTPShard],
@@ -460,12 +467,21 @@ def try_load_rank_local_tp_state_dict(
     local_bytes = 0
     tp_rank = get_tp_rank()
     with ExitStack() as stack:
-        handles = {
-            file_path: stack.enter_context(
-                safe_open(file_path, framework="pt", device="cpu")
-            )
-            for file_path in weight_files
-        }
+        if device is not None and device.type == "cuda" and envs.SGLANG_PARALLEL_PREAD:
+            reader = stack.enter_context(ParallelPreadReader(device))
+            handles = {
+                file_path: ParallelSliceHandle(file_path, reader)
+                for file_path in weight_files
+            }
+        else:
+            reader = None
+            handles = {
+                file_path: stack.enter_context(
+                    safe_open(file_path, framework="pt", device="cpu")
+                )
+                for file_path in weight_files
+            }
+        start_time = time.perf_counter()
         for target_param_name in sorted(sources_by_target):
             tensor = read_tp_local_tensor(
                 sources_by_target[target_param_name],
@@ -477,6 +493,16 @@ def try_load_rank_local_tp_state_dict(
             )
             local_param_sd[target_param_name] = LocalTPShard(tensor)
             local_bytes += tensor.numel() * tensor.element_size()
+        if reader is not None:
+            reader.close()
+            elapsed = time.perf_counter() - start_time
+            logger.info(
+                "Parallel pread: rank=%d, read=%.2f GiB in %.1fs (%.2f GB/s)",
+                torch.distributed.get_rank(),
+                reader.bytes_read / (1024**3),
+                elapsed,
+                reader.bytes_read / 1e9 / max(elapsed, 1e-9),
+            )
 
     logger.info(
         "Loaded rank-local TP checkpoint slices: rank=%d, tensors=%d, bytes=%.2f GiB",
