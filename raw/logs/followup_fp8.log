@@ -1,0 +1,52 @@
+✓ Initialized. View run at 
+https://modal.com/apps/onepunchmonk/main/ap-kalTF88GapdrpmjEJd7Nwt
+✓ Created objects.
+├── 🔨 Created mount 
+│   <local>
+├── 🔨 Created mount 
+│   <local>
+├── 🔨 Created mount 
+│   <local>
+│   ng
+├── 🔨 Created mount 
+│   <local>
+├── 🔨 Created function prefetch.
+└── 🔨 Created function followup.
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 13.0.3
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+{
+ "unit_tests_h100": {
+  "rc": 0,
+  "out": "...........................................                              [100%]\n43 passed in 35.52s\n"
+ },
+ "base_head_fa3_fp8": {
+  "rc": 0,
+  "flex_autotune_lines": 0,
+  "s_per_it": [
+   "5.69",
+   "5.78"
+  ],
+  "name": "base_head_fa3_fp8",
+  "load_s": 68.44350675900002,
+  "wall_s": 271.388891611,
+  "peak_reserved_MB": 27214.0,
+  "peak_allocated_MB": 23712.74
+ }
+}
+Stopping app - local entrypoint completed.
+Runner terminated.
+✓ App completed. View run at 
+https://modal.com/apps/onepunchmonk/main/ap-kalTF88GapdrpmjEJd7Nwt

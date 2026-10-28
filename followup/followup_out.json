@@ -1,0 +1,44 @@
+{
+ "distilled_head": {
+  "rc": 0,
+  "flex_autotune_lines": 0,
+  "s_per_it": [
+   "2.94",
+   "3.29"
+  ],
+  "name": "distilled_head",
+  "load_s": 104.66054880099999,
+  "wall_s": 73.37518804499999,
+  "peak_reserved_MB": 59574.0,
+  "peak_allocated_MB": 38456.93,
+  "log_tail": "<00:37,  7.50s/it]\n\nLoading safetensors checkpoint shards: 0%|          | 0/1\u001b[A\n\nLoading safetensors checkpoint shards: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 1/1\u001b[A\nLoading safetensors checkpoint shards: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 1/1\n\nLoading required modules:  43%|\u2588\u2588\u2588\u2588\u258e     | 3/7 [00:17<00:17,  4.47s/it]/opt/sglang/lib/python3.12/site-packages/torch/jit/_script.py:1491: FutureWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.\n  warnings.warn(\n\nLoading required modules:  57%|\u2588\u2588\u2588\u2588\u2588\u258b    | 4/7 [00:17<00:08,  2.99s/it]\nLoading required modules:  71%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258f  | 5/7 [00:20<00:05,  2.76s/it]\nLoading required modules: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 7/7 [00:20<00:00,  2.87s/it]\n\n  0%|          | 0/10 [00:00<?, ?it/s]\n 10%|\u2588         | 1/10 [00:06<01:01,  6.86s/it]\n 20%|\u2588\u2588        | 2/10 [00:09<00:36,  4.51s/it]\n 30%|\u2588\u2588\u2588       | 3/10 [00:12<00:26,  3.78s/it]\n 40%|\u2588\u2588\u2588\u2588      | 4/10 [00:15<00:20,  3.44s/it]\n 50%|\u2588\u2588\u2588\u2588\u2588     | 5/10 [00:18<00:16,  3.24s/it]\n 60%|\u2588\u2588\u2588\u2588\u2588\u2588    | 6/10 [00:21<00:12,  3.13s/it]\n 70%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588   | 7/10 [00:24<00:09,  3.04s/it]\n 80%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  | 8/10 [00:27<00:05,  2.98s/it]\n 90%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588 | 9/10 [00:29<00:02,  2.96s/it]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 10/10 [00:32<00:00,  2.94s/it]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 10/10 [00:32<00:00,  3.29s/it]\n/opt/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/multiprocessing/resource_tracker.py:279: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown\n  warnings.warn('resource_tracker: There appear to be %d '\n"
+ },
+ "distilled_main": {
+  "rc": 0,
+  "flex_autotune_lines": 2,
+  "s_per_it": [
+   "5.62",
+   "8.36"
+  ],
+  "name": "distilled_main",
+  "load_s": 56.732256174000014,
+  "wall_s": 109.72098420100002,
+  "peak_reserved_MB": 58458.0,
+  "peak_allocated_MB": 32197.96,
+  "log_tail": "8, USE_TMA=False, V_HEAD_DIM=128, V_HEAD_DIM_ROUNDED=128, WRITE_DQ=True, num_stages=3, num_warps=4\n  triton_flex_attention_1 830.3087 ms 46.8% BLOCKS_ARE_CONTIGUOUS=False, BLOCK_M=128, BLOCK_N=128, FLOAT32_PRECISION=\"'ieee'\", GQA_SHARED_HEADS=1, HAS_FULL_BLOCKS=True, IS_DIVISIBLE=True, OUTPUT_LOGSUMEXP=False, OUTPUT_MAX=False, PRESCALE_QK=False, QK_HEAD_DIM=128, QK_HEAD_DIM_ROUNDED=128, ROWS_GUARANTEED_SAFE=False, SAFE_HEAD_DIM=True, SM_SCALE=0.08838834764831843, SPARSE_KV_BLOCK_SIZE=128, SPARSE_Q_BLOCK_SIZE=128, USE_TMA=False, V_HEAD_DIM=128, V_HEAD_DIM_ROUNDED=128, WRITE_DQ=True, num_stages=3, num_warps=4\nSingleProcess AUTOTUNE benchmarking takes 26.0575 seconds and 3.2842 seconds precompiling for 7 choices\n\n 10%|\u2588         | 1/10 [00:38<05:43, 38.12s/it]\n 20%|\u2588\u2588        | 2/10 [00:41<02:22, 17.77s/it]\n 30%|\u2588\u2588\u2588       | 3/10 [00:46<01:24, 12.05s/it]\n 40%|\u2588\u2588\u2588\u2588      | 4/10 [00:52<00:56,  9.36s/it]\n 50%|\u2588\u2588\u2588\u2588\u2588     | 5/10 [00:57<00:39,  7.88s/it]\n 60%|\u2588\u2588\u2588\u2588\u2588\u2588    | 6/10 [01:02<00:27,  6.98s/it]\n 70%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588   | 7/10 [01:07<00:19,  6.41s/it]\n 80%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  | 8/10 [01:13<00:12,  6.04s/it]\n 90%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588 | 9/10 [01:18<00:05,  5.79s/it]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 10/10 [01:23<00:00,  5.62s/it]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 10/10 [01:23<00:00,  8.36s/it]\n/opt/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/multiprocessing/resource_tracker.py:279: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown\n  warnings.warn('resource_tracker: There appear to be %d '\n"
+ },
+ "base_head_fa3_only": {
+  "rc": 0,
+  "flex_autotune_lines": 0,
+  "s_per_it": [
+   "5.59",
+   "5.66"
+  ],
+  "name": "base_head_fa3_only",
+  "load_s": 76.94791649999996,
+  "wall_s": 250.60106672299997,
+  "peak_reserved_MB": 59576.0,
+  "peak_allocated_MB": 38468.49,
+  "log_tail": "      | 16/40 [01:31<02:14,  5.62s/it]\n 42%|\u2588\u2588\u2588\u2588\u258e     | 17/40 [01:37<02:09,  5.62s/it]\n 45%|\u2588\u2588\u2588\u2588\u258c     | 18/40 [01:43<02:03,  5.61s/it]\n 48%|\u2588\u2588\u2588\u2588\u258a     | 19/40 [01:48<01:57,  5.61s/it]\n 50%|\u2588\u2588\u2588\u2588\u2588     | 20/40 [01:54<01:52,  5.61s/it]\n 52%|\u2588\u2588\u2588\u2588\u2588\u258e    | 21/40 [01:59<01:46,  5.61s/it]\n 55%|\u2588\u2588\u2588\u2588\u2588\u258c    | 22/40 [02:05<01:40,  5.60s/it]\n 57%|\u2588\u2588\u2588\u2588\u2588\u258a    | 23/40 [02:11<01:35,  5.61s/it]\n 60%|\u2588\u2588\u2588\u2588\u2588\u2588    | 24/40 [02:16<01:29,  5.61s/it]\n 62%|\u2588\u2588\u2588\u2588\u2588\u2588\u258e   | 25/40 [02:22<01:24,  5.61s/it]\n 65%|\u2588\u2588\u2588\u2588\u2588\u2588\u258c   | 26/40 [02:27<01:18,  5.61s/it]\n 68%|\u2588\u2588\u2588\u2588\u2588\u2588\u258a   | 27/40 [02:33<01:13,  5.62s/it]\n 70%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588   | 28/40 [02:39<01:07,  5.62s/it]\n 72%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258e  | 29/40 [02:44<01:01,  5.61s/it]\n 75%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c  | 30/40 [02:50<00:56,  5.61s/it]\n 78%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a  | 31/40 [02:55<00:50,  5.61s/it]\n 80%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  | 32/40 [03:01<00:44,  5.62s/it]\n 82%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258e | 33/40 [03:07<00:39,  5.61s/it]\n 85%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c | 34/40 [03:12<00:33,  5.61s/it]\n 88%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a | 35/40 [03:18<00:28,  5.61s/it]\n 90%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588 | 36/40 [03:24<00:22,  5.61s/it]\n 92%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258e| 37/40 [03:29<00:16,  5.61s/it]\n 95%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c| 38/40 [03:35<00:11,  5.60s/it]\n 98%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a| 39/40 [03:40<00:05,  5.60s/it]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 40/40 [03:46<00:00,  5.59s/it]\n100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 40/40 [03:46<00:00,  5.66s/it]\n/opt/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/multiprocessing/resource_tracker.py:279: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown\n  warnings.warn('resource_tracker: There appear to be %d '\n"
+ }
+}

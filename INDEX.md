@@ -21,6 +21,10 @@ Every run is listed below, including stopped, failed and discarded ones.
 | 11 | H100 tests after short-clip fix: 43 passed | done | in run 12's JSON (`unit_tests_h100`) |
 | 12 | **Final**: head (FA3 split + FP8, `44db7c9`) first on a cold cache, then main, 40 steps | done | `fa3/fa3_full_out.json`, `fa3/psnr_fa3_out.json`, `fa3/main_41fb719.mp4`, `fa3/head_fa3_fp8.mp4`, `fa3/side_by_side.gif`, `raw/logs/fa3_full.log` |
 
+| 13 | Follow-up: distilled checkpoint, head (FP8 off) then main, 10 steps, guidance 1.0; base head FA3 only (FP8 off) | done; exposed the +6.3 GB cache-padding regression | `followup/followup_out.json`, `raw/logs/followup.log` |
+| 14 | Fix `3412e3b616` (cache sized to the clip): H100 tests 43 passed (after one test-assertion fix), FA3-only rerun | done | `followup/followup_fix_out.json`, `raw/logs/followup_fix.log` |
+| 15 | FP8 rerun with the fix | done | `followup/followup_fp8_out.json`, `raw/logs/followup_fp8.log` |
+
 ## Runs whose output was not saved to a file (recorded from the session)
 
 - **Run 7.** `pytest test_wan_animate_2_parallelism.py` on H100 exited -11 after 11 passing tests. The first failing test was `test_split_attention_matches_flex[False-0.0]`.

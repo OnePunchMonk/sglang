@@ -1,0 +1,73 @@
+✓ Initialized. View run at 
+https://modal.com/apps/onepunchmonk/main/ap-8t78BOIGUAY0GxLW5gvH9B
+Building image im-JkSTHnTzB8PtjuXCgcwvL8
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 6.14s
+
+Built image im-JkSTHnTzB8PtjuXCgcwvL8 in 18.75s
+
+
+Building image im-A37mLBwHmAQZXKGm7l2BNo
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 5.87s
+
+Built image im-A37mLBwHmAQZXKGm7l2BNo in 8.47s
+
+
+✓ Created objects.
+├── 🔨 Created mount 
+│   <local>
+├── 🔨 Created mount 
+│   <local>
+├── 🔨 Created mount 
+│   <local>
+│   ng
+├── 🔨 Created mount 
+│   <local>
+├── 🔨 Created function prefetch.
+└── 🔨 Created function followup.
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 13.0.3
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+{
+ "unit_tests_h100": {
+  "rc": 0,
+  "out": "...........................................                              [100%]\n43 passed in 31.87s\n"
+ },
+ "base_head_fa3_only": {
+  "rc": 0,
+  "flex_autotune_lines": 0,
+  "s_per_it": [
+   "5.52",
+   "5.61"
+  ],
+  "name": "base_head_fa3_only",
+  "load_s": 84.639548208,
+  "wall_s": 265.490766735,
+  "peak_reserved_MB": 56600.0,
+  "peak_allocated_MB": 30782.73
+ }
+}
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/onepunchmonk/main/ap-8t78BOIGUAY0GxLW5gvH9B
