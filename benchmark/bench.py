@@ -11,7 +11,7 @@ import modal
 
 SCRATCH = "<scratch>"
 BASE_PY = f"{SCRATCH}/base/python/sglang"
-HEAD_PY = "/Users/aggar/sglang-wan-animate2/python/sglang"
+HEAD_PY = "<path to the PR checkout>/python/sglang"
 MODEL_ID = "Wan-AI/Wan2.2-Animate-2-14B-Diffusers"
 CI = (
     "https://raw.githubusercontent.com/sgl-project/ci-data-diffusion/"
