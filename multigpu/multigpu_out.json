@@ -1,0 +1,55 @@
+{
+ "head_cfg": {
+  "rc": 0,
+  "flex_autotune_lines": 0,
+  "s_per_it": [
+   "2.84",
+   "3.04"
+  ],
+  "name": "head_cfg",
+  "load_s": 131.788861631,
+  "wall_s": 173.061836021,
+  "peak_reserved_MB": 57968.0,
+  "peak_allocated_MB": 30771.72
+ },
+ "main_cfg": {
+  "rc": 0,
+  "flex_autotune_lines": 4,
+  "s_per_it": [
+   "5.06",
+   "5.78"
+  ],
+  "name": "main_cfg",
+  "load_s": 69.62279947499997,
+  "wall_s": 263.519294573,
+  "peak_reserved_MB": 58908.0,
+  "peak_allocated_MB": 32196.97
+ },
+ "head_sp2": {
+  "rc": 0,
+  "flex_autotune_lines": 0,
+  "s_per_it": [
+   "3.08",
+   "3.13"
+  ],
+  "name": "head_sp2",
+  "load_s": 65.02639593399999,
+  "wall_s": 158.59822646400005,
+  "peak_reserved_MB": 26012.0,
+  "peak_allocated_MB": 23749.27
+ },
+ "main_sp2": {
+  "rc": 0,
+  "flex_autotune_lines": 4,
+  "s_per_it": [
+   "5.23",
+   "5.66"
+  ],
+  "name": "main_sp2",
+  "load_s": 65.05806696499997,
+  "wall_s": 255.7393723660001,
+  "peak_reserved_MB": 26010.0,
+  "peak_allocated_MB": 23749.26
+ },
+ "compare": "{\"main_cfg\": {\"md5\": \"be4696d81e76636ae5d92f2e711e46c1\", \"md5_same_as_1gpu_main\": false, \"vs_1gpu_same_tree\": {\"mean_db\": 38.36861318922471, \"min_db\": 34.137472547892635, \"bitwise_decoded\": false}, \"vs_1gpu_main\": {\"mean_db\": 38.36861318922471, \"min_db\": 34.137472547892635, \"bitwise_decoded\": false}}, \"head_cfg\": {\"md5\": \"c4506fcefbe6943d312d206cf1d0fb71\", \"md5_same_as_1gpu_head\": false, \"vs_1gpu_same_tree\": {\"mean_db\": 38.6114421191509, \"min_db\": 33.69335624641679, \"bitwise_decoded\": false}, \"vs_1gpu_main\": {\"mean_db\": 39.66645873855238, \"min_db\": 33.778125406200914, \"bitwise_decoded\": false}}, \"main_sp2\": {\"md5\": \"390da4b3f34b2836e5ef223ef337873a\", \"md5_same_as_1gpu_main\": false, \"vs_1gpu_same_tree\": {\"mean_db\": 40.302765912107965, \"min_db\": 35.764266699205, \"bitwise_decoded\": false}, \"vs_1gpu_main\": {\"mean_db\": 40.302765912107965, \"min_db\": 35.764266699205, \"bitwise_decoded\": false}}, \"head_sp2\": {\"md5\": \"148fb720bd525330eb4871ec57ab2fe4\", \"md5_same_as_1gpu_head\": false, \"vs_1gpu_same_tree\": {\"mean_db\": 39.002824219200065, \"min_db\": 36.58289653833033, \"bitwise_decoded\": false}, \"vs_1gpu_main\": {\"mean_db\": 40.52971391382497, \"min_db\": 38.47330318470174, \"bitwise_decoded\": false}}, \"head_vs_main_cfg\": {\"mean_db\": 37.84485726909934, \"min_db\": 32.698219640767825, \"bitwise_decoded\": false}, \"head_vs_main_sp2\": {\"mean_db\": 40.47297592772621, \"min_db\": 38.25042721641738, \"bitwise_decoded\": false}}"
+}

@@ -25,6 +25,8 @@ Every run is listed below, including stopped, failed and discarded ones.
 | 14 | Fix `3412e3b616` (cache sized to the clip): H100 tests 43 passed (after one test-assertion fix), FA3-only rerun | done | `followup/followup_fix_out.json`, `raw/logs/followup_fix.log` |
 | 15 | FP8 rerun with the fix | done | `followup/followup_fp8_out.json`, `raw/logs/followup_fp8.log` |
 | 16 | PSNR (CPU): FA3-only (FP8 off) vs main, base checkpoint; distilled head vs distilled main. main mp4 is bitwise identical across two runs (md5 `6335ac1f`) | done | `followup/psnr_fa3_only_out.json`, `followup/psnr_distilled_out.json` |
+| 17 | Multi-GPU, 2x H100: CFG-parallel and Ulysses SP=2, head (FA3, FP8 off) then main per mode, 40 steps | done | `multigpu/multigpu_out.json`, `multigpu/*.mp4`, `raw/logs/multigpu.log` |
+| 18 | Multi-clip, 1x H100: demo video looped 3x, head then main, 40 steps, FP8 off | running | (pending) |
 
 ## Runs whose output was not saved to a file (recorded from the session)
 
