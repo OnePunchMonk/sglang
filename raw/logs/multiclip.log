@@ -1,0 +1,72 @@
+✓ Initialized. View run at 
+https://modal.com/apps/onepunchmonk/main/ap-7eoCDv1ggHjweFu3KT0bhy
+✓ Created objects.
+├── 🔨 Created mount 
+│   <local>
+├── 🔨 Created mount 
+│   <local>
+├── 🔨 Created mount 
+│   <local>
+│   ng
+├── 🔨 Created mount 
+│   <local>
+└── 🔨 Created function multiclip.
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 13.0.3
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+[gpu-health] [WARN] GPU-530d7a9c-4aee-3c50-2519-cf8159a9dd4b: DCGM dmon: DCGM metrics unhealthy: reasons=[Hardware Slowdown, Software Thermal Throttling, Hardware Thermal Throttling]
+[gpu-health] [WARN] GPU-530d7a9c-4aee-3c50-2519-cf8159a9dd4b: DCGM dmon: DCGM metrics unhealthy: reasons=[Software Power Cap, Hardware Slowdown, Hardware Thermal Throttling]
+{
+ "driving_video": "{\n    \"programs\": [\n\n    ],\n    \"streams\": [\n        {\n            \"r_frame_rate\": \"30/1\",\n            \"duration\": \"10.616016\",\n            \"nb_frames\": \"318\"\n        }\n    ]\n}\n",
+ "head": {
+  "rc": 0,
+  "flex_autotune_lines": 0,
+  "per_clip_s_per_it": [
+   "8.08",
+   "8.15",
+   "8.05",
+   "8.08",
+   "2.58",
+   "2.59"
+  ],
+  "name": "head",
+  "load_s": 135.58143517,
+  "wall_s": 809.477859169,
+  "peak_reserved_MB": 71876.0,
+  "peak_allocated_MB": 40083.3
+ },
+ "main": {
+  "rc": 0,
+  "flex_autotune_lines": 2,
+  "per_clip_s_per_it": [
+   "11.26",
+   "11.83",
+   "11.19",
+   "11.32",
+   "8.17",
+   "8.15"
+  ],
+  "name": "main",
+  "load_s": 51.13186802599989,
+  "wall_s": 1299.6428997459998,
+  "peak_reserved_MB": 71280.0,
+  "peak_allocated_MB": 40582.69
+ },
+ "compare": "{\"frames_main\": 169, \"frames_head\": 169, \"psnr_mean_db\": 37.756213887150594, \"psnr_min_db\": 30.471151191533092, \"per_clip_mean_db\": [39.286133415672246, 36.84286398390096, 34.99978497416981], \"temporal_mad_main\": 3.298271307391408, \"temporal_mad_head\": 3.266208627876067}"
+}
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/onepunchmonk/main/ap-7eoCDv1ggHjweFu3KT0bhy
+done
