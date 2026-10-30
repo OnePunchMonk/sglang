@@ -33,7 +33,7 @@ Every run is listed below, including stopped, failed and discarded ones.
 - **Run 7.** `pytest test_wan_animate_2_parallelism.py` on H100 exited -11 after 11 passing tests. The first failing test was `test_split_attention_matches_flex[False-0.0]`.
 - **Run 8.** On H100:
   - `sglang.kernels.ops.attention.flash_attention_v3.flash_attn_varlen_func(..., return_softmax_lse=True)` works.
-  - `sglang.multimodal_gen.runtime.layers.attention.backends.flash_attn.flash_attn_varlen_func_op_lse(q, k, v, cu, cu, 384, 384, ver=3)` segfaults (-11). The likely cause is the op's `window_size=None` default; the dispatcher defaults to `(-1, -1)`.
+  - `sglang.multimodal_gen.runtime.layers.attention.backends.flash_attn.flash_attn_varlen_func_op_lse(q, k, v, cu, cu, 384, 384, ver=3)` segfaults (-11). Correction: it is not the `window_size` default (the op converts `None` to `[-1, -1]`). The op is only used with `ver=4` (FA4) in the repo; calling it with `ver=3` is likely the cause, since FA3 returns more tensors than the op's 2-tensor schema (unverified). Not an upstream bug.
   - `sglang.srt.layers.attention.merge_state.merge_state` works and returns `(out [N,H,D], lse [N,H])`.
   - Fix: call `sglang.kernels.ops.attention.flash_attention.flash_attn_varlen_func(..., ver=3)`.
 - **Run 9.** 38 passed in 21.6 s, H100, full test file.
