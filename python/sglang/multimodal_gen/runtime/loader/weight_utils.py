@@ -17,6 +17,7 @@ from safetensors.torch import safe_open
 from torch.distributed.tensor import DTensor
 from tqdm.auto import tqdm
 
+from sglang.multimodal_gen import envs
 from sglang.multimodal_gen.runtime.distributed import get_local_torch_device
 from sglang.multimodal_gen.runtime.loader.utils import (
     _DEFAULT_SAFETENSORS_INDEX,
@@ -25,6 +26,7 @@ from sglang.multimodal_gen.runtime.loader.utils import (
 from sglang.multimodal_gen.runtime.loader.weight_load_plan import WeightLoadPlan
 from sglang.multimodal_gen.runtime.loader.weight_readers import (
     FALLBACK_READER,
+    ParallelPreadWeightReader,
     RunaiStreamerReader,
     select_weight_reader,
 )
@@ -253,9 +255,19 @@ def safetensors_weights_iterator(
         # -- and its strengths (direct-to-GPU, remote streaming) do not apply
         # to a local file headed for the CPU.
         requested = FALLBACK_READER.name
+    elif (
+        envs.SGLANG_PARALLEL_PREAD
+        and "SGLANG_USE_RUNAI_MODEL_STREAMER" not in os.environ
+        and ParallelPreadWeightReader.is_available()
+    ):
+        # An explicit SGLANG_USE_RUNAI_MODEL_STREAMER (either value) keeps
+        # the previous choice between the streamer and mmap.
+        requested = ParallelPreadWeightReader.name
     backend = select_weight_reader(
         requested=requested, needs_key_filter=key_filter is not None
     )
+
+    logger.info("Weight reader: %s (device=%s)", backend.name, device)
 
     # Validate files before loading
     corrupted_files, duplicate_files_by_key = _scan_safetensors_files(hf_weights_files)

@@ -422,6 +422,7 @@ def maybe_load_fsdp_model(
                 model,
                 weight_dir_list,
                 param_names_mapping_fn,
+                device=weight_load_plan.checkpoint_load_device,
             )
         )
 
