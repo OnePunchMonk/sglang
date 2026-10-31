@@ -24,8 +24,9 @@ from sglang.multimodal_gen.runtime.distributed import (
 )
 from sglang.multimodal_gen.runtime.layers.attention import USPAttention
 from sglang.multimodal_gen.runtime.layers.attention.layer import build_varlen_mask_meta
+from sglang.multimodal_gen.runtime.layers.activation import SiluAndMul
 from sglang.multimodal_gen.runtime.layers.linear import (
-    ColumnParallelLinear,
+    MergedColumnParallelLinear,
     RowParallelLinear,
 )
 from sglang.multimodal_gen.runtime.layers.quantization.configs.base_config import (
@@ -63,6 +64,21 @@ def ropeapply(xq: Tensor, xk: Tensor, freqs: Tensor) -> tuple[Tensor, Tensor]:
     return xq_.reshape(*xq.shape).to(xq.dtype), xk_.reshape(*xk.shape).to(xk.dtype)
 
 
+def _ver(t: Tensor) -> int | None:
+    """In-place-mutation counter for cache invalidation; inference tensors have none."""
+    return None if t.is_inference() else t._version
+
+
+def ropeapply_blhd(xq: Tensor, xk: Tensor, freqs: Tensor) -> tuple[Tensor, Tensor]:
+    """``ropeapply`` for ``[B, S, H, D]`` inputs (no head-major transpose)."""
+    xq_ = xq.float().reshape(*xq.shape[:-1], -1, 1, 2)
+    xk_ = xk.float().reshape(*xk.shape[:-1], -1, 1, 2)
+    freqs = freqs[:, :, None, :, :, :]
+    xq_ = freqs[..., 0] * xq_[..., 0] + freqs[..., 1] * xq_[..., 1]
+    xk_ = freqs[..., 0] * xk_[..., 0] + freqs[..., 1] * xk_[..., 1]
+    return xq_.reshape(*xq.shape).to(xq.dtype), xk_.reshape(*xk.shape).to(xk.dtype)
+
+
 def _fused_qknorm_rope_enabled() -> bool:
     return envs.SGLANG_ENABLE_FUSED_QKNORM_ROPE
 
@@ -82,6 +98,13 @@ def _qknorm_rope_cos_sin_cache(freqs: Tensor) -> Tensor:
     first batch row is representative.
     """
     return torch.cat([freqs[0, :, :, 0, 0], freqs[0, :, :, 1, 0]], dim=-1).float()
+
+
+def _build_rope_cache(freqs: Tensor, b: int, s: int) -> tuple[Tensor, Tensor]:
+    positions = torch.arange(s, device=freqs.device, dtype=torch.long)
+    if b > 1:
+        positions = positions.repeat(b)
+    return _qknorm_rope_cos_sin_cache(freqs), positions
 
 
 def temb(
@@ -185,11 +208,18 @@ class RMSNorm(nn.Module):
             torch.zeros(features, device=device, dtype=torch.float32)
         )
 
+    def eff_weight(self, dtype: torch.dtype | None = None) -> Tensor:
+        """Cached ``weight + 1`` (fp32, or ``dtype``); rebuilt if the weight changes."""
+        key = (self.weight.data_ptr(), _ver(self.weight), dtype)
+        if getattr(self, "_eff_key", None) != key:
+            w = self.weight.float() + 1.0
+            self._eff = w if dtype is None else w.to(dtype)
+            self._eff_key = key
+        return self._eff
+
     def forward(self, x: Tensor) -> Tensor:
         t, dtype = x.float(), x.dtype
-        t = F.rms_norm(
-            t, (self.features,), eps=self.eps, weight=(self.weight.float() + 1.0)
-        )
+        t = F.rms_norm(t, (self.features,), eps=self.eps, weight=self.eff_weight())
         return t.to(dtype)
 
 
@@ -206,23 +236,16 @@ class SwiGLU(nn.Module):
         super().__init__()
         mlpdim = int(2 * features / 3) * multiplier
         mlpdim = multiple * ((mlpdim + multiple - 1) // multiple)
-        # Tensor-parallel: gate/up shard the hidden dim by column, down all-reduces.
-        self.gate = ColumnParallelLinear(
+        # Tensor-parallel: gate/up are one merged column-parallel GEMM, down all-reduces.
+        self.gate_up = MergedColumnParallelLinear(
             features,
-            mlpdim,
+            [mlpdim, mlpdim],
             bias=bias,
             gather_output=False,
             quant_config=quant_config,
-            prefix=f"{prefix}.gate",
+            prefix=f"{prefix}.gate_up",
         )
-        self.up = ColumnParallelLinear(
-            features,
-            mlpdim,
-            bias=bias,
-            gather_output=False,
-            quant_config=quant_config,
-            prefix=f"{prefix}.up",
-        )
+        self.act = SiluAndMul()
 
         self.down = RowParallelLinear(
             mlpdim,
@@ -234,9 +257,8 @@ class SwiGLU(nn.Module):
         )
 
     def forward(self, x: Tensor) -> Tensor:
-        gate, _ = self.gate(x)
-        up, _ = self.up(x)
-        out, _ = self.down(F.silu(gate) * up)
+        gate_up, _ = self.gate_up(x)
+        out, _ = self.down(self.act(gate_up))
         return out
 
 
@@ -265,38 +287,23 @@ class Attention(nn.Module):
         self.local_heads = self.heads // tp
         self.local_kvheads = self.kvheads // tp
 
-        self.to_q = ColumnParallelLinear(
+        # q/k/v/gate are one merged GEMM; output order is [q | k | v | gate].
+        self.to_qkvg = MergedColumnParallelLinear(
             dim,
-            self.headdim * self.heads,
+            [
+                self.headdim * self.heads,
+                self.headdim * self.kvheads,
+                self.headdim * self.kvheads,
+                dim,
+            ],
             bias=bias,
             gather_output=False,
             quant_config=quant_config,
-            prefix=f"{prefix}.to_q",
+            prefix=f"{prefix}.to_qkvg",
         )
-        self.to_k = ColumnParallelLinear(
-            dim,
-            self.headdim * self.kvheads,
-            bias=bias,
-            gather_output=False,
-            quant_config=quant_config,
-            prefix=f"{prefix}.to_k",
-        )
-        self.to_v = ColumnParallelLinear(
-            dim,
-            self.headdim * self.kvheads,
-            bias=bias,
-            gather_output=False,
-            quant_config=quant_config,
-            prefix=f"{prefix}.to_v",
-        )
-        self.to_gate = ColumnParallelLinear(
-            dim,
-            dim,
-            bias=bias,
-            gather_output=False,
-            quant_config=quant_config,
-            prefix=f"{prefix}.to_gate",
-        )
+        self._q_size = self.local_heads * self.headdim
+        self._kv_size = self.local_kvheads * self.headdim
+        self._gate_size = dim // tp
         self.norm_q = RMSNorm(self.headdim)
         self.norm_k = RMSNorm(self.headdim)
         # to_out is a ModuleList ([linear]) so the param is to_out.0.weight, matching
@@ -331,11 +338,12 @@ class Attention(nn.Module):
         mask_meta: dict | None = None,
         num_replicated_prefix: int = 0,
         skip_sequence_parallel: bool = False,
+        rope_cache: tuple[Tensor, Tensor] | None = None,
     ) -> Tensor:
-        q, _ = self.to_q(qkv)
-        k, _ = self.to_k(qkv)
-        v, _ = self.to_v(qkv)
-        gate, _ = self.to_gate(qkv)
+        qkvg, _ = self.to_qkvg(qkv)
+        q, k, v, gate = qkvg.split(
+            [self._q_size, self._kv_size, self._kv_size, self._gate_size], dim=-1
+        )
 
         hd = self.headdim
         # Fast path: fuse RMSNorm(q), RMSNorm(k) and RoPE into one in-place kernel on
@@ -356,15 +364,15 @@ class Attention(nn.Module):
             q = q.view(b, s, self.local_heads, hd)
             k = k.view(b, s, self.local_kvheads, hd)
             v = v.view(b, s, self.local_kvheads, hd)
-            positions = torch.arange(s, device=q.device, dtype=torch.long)
-            if b > 1:
-                positions = positions.repeat(b)
+            if rope_cache is None:
+                rope_cache = _build_rope_cache(freqs, b, s)
+            cos_sin, positions = rope_cache
             fused_inplace_qknorm_rope(
                 q.reshape(-1, self.local_heads, hd),
                 k.reshape(-1, self.local_kvheads, hd),
-                (self.norm_q.weight.float() + 1.0).to(q.dtype),
-                (self.norm_k.weight.float() + 1.0).to(k.dtype),
-                _qknorm_rope_cos_sin_cache(freqs),
+                self.norm_q.eff_weight(q.dtype),
+                self.norm_k.eff_weight(k.dtype),
+                cos_sin,
                 positions,
                 is_neox=False,
                 eps=self.norm_q.eps,
@@ -381,20 +389,19 @@ class Attention(nn.Module):
                 skip_sequence_parallel_override=skip_sequence_parallel,
             ).flatten(2)
         else:
-            q, k, v = (
-                rearrange(q, "B L (H D) -> B H L D", H=self.local_heads),
-                rearrange(k, "B L (H D) -> B H L D", H=self.local_kvheads),
-                rearrange(v, "B L (H D) -> B H L D", H=self.local_kvheads),
-            )
+            b, s = qkv.shape[0], qkv.shape[1]
+            q = q.reshape(b, s, self.local_heads, hd)
+            k = k.reshape(b, s, self.local_kvheads, hd)
+            v = v.reshape(b, s, self.local_kvheads, hd)
             q, k = self.norm_q(q), self.norm_k(k)
             if freqs is not None:
-                q, k = ropeapply(q, k, freqs)
+                q, k = ropeapply_blhd(q, k, freqs)
             # USPAttention expects [B, S, H, D]; a [B, S] key mask + varlen metadata
             # routes a ragged batch through the FA varlen fast path, else maskless.
             out = self.attn(
-                q.transpose(1, 2).contiguous(),
-                k.transpose(1, 2).contiguous(),
-                v.transpose(1, 2).contiguous(),
+                q,
+                k,
+                v,
                 attn_mask=key_mask,
                 attn_mask_meta=mask_meta,
                 num_replicated_prefix=num_replicated_prefix,
@@ -414,9 +421,8 @@ class LastLayer(nn.Module):
     def forward(self, x: Tensor, tvec: Tensor) -> Tensor:
         mod = tvec + rearrange(self.scale_shift_table, "two d -> 1 two d")
         scale, shift = mod.chunk(2, dim=1)
-        x = norm_scale_shift(x, self.norm.weight + 1, scale, shift, self.norm.eps)
-        x = self.linear(x)
-        return x
+        x = norm_scale_shift(x, self.norm.eff_weight(), scale, shift, self.norm.eps)
+        return self.linear(x)
 
 
 class TextFusionBlock(nn.Module):
@@ -524,7 +530,7 @@ class TextFusionTransformer(nn.Module):
         b, l, n, d = x.shape
         x = x.reshape(b * l, n, d)
         for block in self.layerwise_blocks:
-            x = block(x.contiguous())
+            x = block(x)
         x = rearrange(x, "(b l) n d -> b l d n", b=b, l=l)
         x = self.projector(x)
         x = x.squeeze(-1)
@@ -574,6 +580,7 @@ class SingleStreamBlock(nn.Module):
         key_mask: Tensor | None = None,
         mask_meta: dict | None = None,
         num_replicated_prefix: int = 0,
+        rope_cache: tuple[Tensor, Tensor] | None = None,
     ) -> Tensor:
         mod = vec + self.scale_shift_table.reshape(-1)
         prescale, preshift, pregate, postscale, postshift, postgate = mod.chunk(
@@ -582,7 +589,7 @@ class SingleStreamBlock(nn.Module):
         hidden_states = hidden_states + pregate * self.attn(
             norm_scale_shift(
                 hidden_states,
-                self.norm1.weight + 1,
+                self.norm1.eff_weight(),
                 prescale,
                 preshift,
                 self.norm1.eps,
@@ -591,11 +598,12 @@ class SingleStreamBlock(nn.Module):
             key_mask,
             mask_meta,
             num_replicated_prefix=num_replicated_prefix,
+            rope_cache=rope_cache,
         )
         hidden_states = hidden_states + postgate * self.ff(
             norm_scale_shift(
                 hidden_states,
-                self.norm2.weight + 1,
+                self.norm2.eff_weight(),
                 postscale,
                 postshift,
                 self.norm2.eps,
@@ -673,9 +681,50 @@ class Krea2Transformer2DModel(CachableDiT, LayerwiseOffloadableModuleMixin):
         # GELU(tanh) is applied in the forward; the linear matches time_mod_proj.weight.
         self.time_mod_proj = nn.Linear(ac.features, ac.features * 6)
         self.seq_multiple_of = ac.seq_multiple_of
+        self._mask_cache = None
+        self._rope_cache = None
         # The 28 single-stream blocks (the ~24GB bulk) are streamed layer-by-layer
         # under --dit-layerwise-offload, keeping only a small working set resident.
         self.layer_names = ["transformer_blocks"]
+
+    def _mask_inputs(self, mask: Tensor | None, txtlen: int):
+        """Key masks + varlen metadata, built once per request (mask is step-invariant).
+
+        A single or same-prompt batch has no padding, so attention runs maskless; a
+        ragged batch takes the FA varlen path.
+        """
+        if mask is None:
+            return None, None, None, None
+        c = self._mask_cache
+        if c is not None and c[0] is mask and c[1] == _ver(mask):
+            return c[2]
+        if bool(mask.all()):
+            out = (None, None, None, None)
+        else:
+            txt_key = mask[:, :txtlen]
+            out = (txt_key, build_varlen_mask_meta(txt_key), mask, build_varlen_mask_meta(mask))
+        self._mask_cache = (mask, _ver(mask), out)
+        return out
+
+    def _rope_inputs(self, pos: Tensor, combined: Tensor):
+        """RoPE freqs + fused-kernel cos/sin cache, built once per request."""
+        b, s = combined.shape[0], combined.shape[1]
+        c = self._rope_cache
+        if (
+            c is not None
+            and c[0] is pos
+            and c[1] == _ver(pos)
+            and c[2] == (b, s, combined.dtype)
+        ):
+            return c[3], c[4]
+        freqs = self.posemb(pos)
+        rope_cache = (
+            _build_rope_cache(freqs, b, s)
+            if combined.is_cuda and combined.dtype in (torch.float16, torch.bfloat16)
+            else None
+        )
+        self._rope_cache = (pos, _ver(pos), (b, s, combined.dtype), freqs, rope_cache)
+        return freqs, rope_cache
 
     def _forward_impl(
         self,
@@ -689,22 +738,16 @@ class Krea2Transformer2DModel(CachableDiT, LayerwiseOffloadableModuleMixin):
         t = self.time_embed(temb(t, self.tdim, device=img.device, dtype=img.dtype))
         tvec = self.time_mod_proj(F.gelu(t, approximate="tanh"))
 
-        # A single or same-prompt batch has no padding, so attention runs maskless
-        # (native-GQA flash). A ragged batch builds varlen metadata from the
-        # key mask and takes the FA varlen path instead.
-        txt_key = txt_meta = joint_key = joint_meta = None
-        if mask is not None and not bool(mask.all()):
-            txt_key = mask[:, : context.shape[1]]
-            txt_meta = build_varlen_mask_meta(txt_key)
-            joint_key = mask
-            joint_meta = build_varlen_mask_meta(mask)
+        txt_key, txt_meta, joint_key, joint_meta = self._mask_inputs(
+            mask, context.shape[1]
+        )
 
         context = self.text_fusion(context, key_mask=txt_key, mask_meta=txt_meta)
         context = self.txt_in(context)
 
-        txtlen, imglen = context.shape[1], img.shape[1]
+        txtlen = context.shape[1]
         combined = torch.cat((context, img), dim=1)
-        freqs = self.posemb(pos)
+        freqs, rope_cache = self._rope_inputs(pos, combined)
 
         # Under SP the image tokens are sharded across ranks while the text prefix
         # stays replicated; keep the leading txtlen tokens out of the all-to-all.
@@ -717,11 +760,10 @@ class Krea2Transformer2DModel(CachableDiT, LayerwiseOffloadableModuleMixin):
                 joint_key,
                 joint_meta,
                 num_replicated_prefix=num_replicated_prefix,
+                rope_cache=rope_cache,
             )
 
-        final = self.final_layer(combined, t)
-        output = final[:, txtlen : txtlen + imglen, :]
-        return output
+        return self.final_layer(combined[:, txtlen:], t)
 
     def forward(
         self,

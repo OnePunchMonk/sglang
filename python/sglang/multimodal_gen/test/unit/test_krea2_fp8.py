@@ -35,8 +35,8 @@ def test_krea2_online_fp8_quantizes_transformer_linears():
 
     quant_config = Fp8Config(
         ignored_layers=[
-            "transformer_blocks.0.attn.to_q",
-            "transformer_blocks.0.ff.up",
+            "transformer_blocks.0.attn.to_qkvg",
+            "transformer_blocks.0.ff.gate_up",
         ]
     )
 
@@ -49,18 +49,15 @@ def test_krea2_online_fp8_quantizes_transformer_linears():
 
     block = model.transformer_blocks[0]
 
-    assert isinstance(block.attn.to_q.quant_method, UnquantizedLinearMethod)
-    assert isinstance(block.attn.to_k.quant_method, Fp8LinearMethod)
-    assert isinstance(block.attn.to_v.quant_method, Fp8LinearMethod)
+    assert isinstance(block.attn.to_qkvg.quant_method, UnquantizedLinearMethod)
     assert isinstance(block.attn.to_out[0].quant_method, Fp8LinearMethod)
 
-    assert isinstance(block.ff.gate.quant_method, Fp8LinearMethod)
-    assert isinstance(block.ff.up.quant_method, UnquantizedLinearMethod)
+    assert isinstance(block.ff.gate_up.quant_method, UnquantizedLinearMethod)
     assert isinstance(block.ff.down.quant_method, Fp8LinearMethod)
 
     text_block = model.text_fusion.layerwise_blocks[0]
-    assert isinstance(text_block.attn.to_q.quant_method, Fp8LinearMethod)
-    assert isinstance(text_block.ff.gate.quant_method, Fp8LinearMethod)
+    assert isinstance(text_block.attn.to_qkvg.quant_method, Fp8LinearMethod)
+    assert isinstance(text_block.ff.gate_up.quant_method, Fp8LinearMethod)
 
     # Numerically sensitive boundary layers remain BF16-native.
     assert isinstance(model.img_in, torch.nn.Linear)

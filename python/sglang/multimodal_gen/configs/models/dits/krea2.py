@@ -41,7 +41,17 @@ class Krea2ArchConfig(DiTArchConfig):
 
     # Module/parameter names match the released checkpoint, so weights load with an
     # identity mapping.
-    param_names_mapping: dict = field(default_factory=dict)
+    # Checkpoint q/k/v/gate and gate/up projections are merged into one GEMM each.
+    param_names_mapping: dict = field(
+        default_factory=lambda: {
+            r"(.*)\.attn\.to_q\.(.*)": (r"\1.attn.to_qkvg.\2", 0, 4),
+            r"(.*)\.attn\.to_k\.(.*)": (r"\1.attn.to_qkvg.\2", 1, 4),
+            r"(.*)\.attn\.to_v\.(.*)": (r"\1.attn.to_qkvg.\2", 2, 4),
+            r"(.*)\.attn\.to_gate\.(.*)": (r"\1.attn.to_qkvg.\2", 3, 4),
+            r"(.*)\.ff\.gate\.(.*)": (r"\1.ff.gate_up.\2", 0, 2),
+            r"(.*)\.ff\.up\.(.*)": (r"\1.ff.gate_up.\2", 1, 2),
+        }
+    )
 
     # Diffusers LoRA checkpoints prefix every DiT key with the pipeline component name
     # (e.g. transformer.transformer_blocks.0.attn.to_q.lora_A). Strip that prefix so the
