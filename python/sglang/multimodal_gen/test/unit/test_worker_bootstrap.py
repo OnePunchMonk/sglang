@@ -333,5 +333,40 @@ class TestOfflineScriptImportContract(unittest.TestCase):
         )
 
 
+def _report_spec_and_environ(spec):
+    spec.pipe_writer.send((spec.rank, os.environ.get("NCCL_NVLS_ENABLE")))
+    spec.pipe_writer.close()
+
+
+class TestPrestartedWorkers(unittest.TestCase):
+    def test_spec_and_late_environment_reach_a_waiting_worker(self):
+        """A worker started before the launcher set NCCL_* still sees it on activation."""
+        reader, writer = mp.get_context("spawn").Pipe(duplex=False)
+        with patch.dict(os.environ):
+            os.environ.pop("NCCL_NVLS_ENABLE", None)
+            workers = worker_bootstrap.prestart_scheduler_workers(
+                1, 3, target=_report_spec_and_environ
+            )
+            try:
+                os.environ["NCCL_NVLS_ENABLE"] = "0"
+                self.assertTrue(workers.can_activate(num_workers=1, rank_offset=3))
+                workers.activate(
+                    server_args=None, pipe_writers=[writer], local_ranks=[0]
+                )
+                writer.close()
+                self.assertEqual(reader.recv(), (3, "0"))
+            finally:
+                workers.terminate()
+
+    def test_mismatch_or_unreplayable_environment_is_not_activated(self):
+        snapshot = dict(os.environ)
+        workers = worker_bootstrap.PrestartedWorkers([None, None], [], 2, snapshot)
+        self.assertFalse(workers.can_activate(num_workers=4, rank_offset=2))
+        self.assertFalse(workers.can_activate(num_workers=2, rank_offset=0))
+        self.assertTrue(workers.can_activate(num_workers=2, rank_offset=2))
+        with patch.dict(os.environ, {"MALLOC_ARENA_MAX": "2"}):
+            self.assertFalse(workers.can_activate(num_workers=2, rank_offset=2))
+
+
 if __name__ == "__main__":
     unittest.main()

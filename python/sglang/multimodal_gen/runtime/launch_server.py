@@ -15,6 +15,7 @@ from sglang.multimodal_gen.runtime.disaggregation.roles import RoleType
 from sglang.multimodal_gen.runtime.entrypoints.control_requests import ShutdownReq
 from sglang.multimodal_gen.runtime.entrypoints.http_server import create_app
 from sglang.multimodal_gen.runtime.managers.worker_bootstrap import (
+    PrestartedWorkers,
     SchedulerProcessSpec,
     ServerArgsPayload,
     bootstrap_http_server_process,
@@ -133,10 +134,17 @@ def shutdown_scheduler_processes(
     _kill_alive_processes(alive, _WORKER_KILL_TIMEOUT_S)
 
 
-def launch_server(server_args: ServerArgs, launch_http_server: bool = True):
+def launch_server(
+    server_args: ServerArgs,
+    launch_http_server: bool = True,
+    prestarted: PrestartedWorkers | None = None,
+):
     """
     Args:
         launch_http_server: False for offline local mode
+        prestarted: workers from prestart_scheduler_workers; used when their
+            count, rank offset and environment still fit, otherwise terminated
+            and replaced by freshly spawned ones
     """
     apply_plugin_hooks()
     configure_logger(server_args)
@@ -166,25 +174,40 @@ def launch_server(server_args: ServerArgs, launch_http_server: bool = True):
     scheduler_pipe_readers = []
     scheduler_pipe_writers = []
 
+    if prestarted is not None and not prestarted.can_activate(
+        num_workers=local_num_gpus, rank_offset=rank_offset
+    ):
+        prestarted.terminate()
+        prestarted = None
+
     for i in range(local_num_gpus):
-        rank = rank_offset + i
         reader, writer = worker_context.Pipe(duplex=False)
         scheduler_pipe_writers.append(writer)
-        spec = SchedulerProcessSpec(
-            local_rank=i,
-            rank=rank,
-            server_args=server_args_payload,
-            pipe_writer=writer,
-        )
-        process = worker_context.Process(
-            target=bootstrap_scheduler_process,
-            args=(spec,),
-            name=f"sglang-diffusionWorker-{rank}",
-            daemon=True,
-        )
         scheduler_pipe_readers.append(reader)
-        process.start()
-        processes.append(process)
+
+    if prestarted is not None:
+        processes = prestarted.activate(
+            server_args=server_args_payload,
+            pipe_writers=scheduler_pipe_writers,
+            local_ranks=list(range(local_num_gpus)),
+        )
+    else:
+        for i in range(local_num_gpus):
+            rank = rank_offset + i
+            spec = SchedulerProcessSpec(
+                local_rank=i,
+                rank=rank,
+                server_args=server_args_payload,
+                pipe_writer=scheduler_pipe_writers[i],
+            )
+            process = worker_context.Process(
+                target=bootstrap_scheduler_process,
+                args=(spec,),
+                name=f"sglang-diffusionWorker-{rank}",
+                daemon=True,
+            )
+            process.start()
+            processes.append(process)
 
     # Wait for all workers to be ready
     scheduler_infos = []
