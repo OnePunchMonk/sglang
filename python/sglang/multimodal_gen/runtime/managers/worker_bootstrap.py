@@ -192,6 +192,9 @@ def _prestarted_scheduler_main(
     # The expensive import of a scheduler child, done before its spec exists.
     from sglang.multimodal_gen.runtime.managers import gpu_worker  # noqa: F401
 
+    # materialize() imports this after activation; plugin hooks are applied.
+    from sglang.multimodal_gen.runtime.server_args import ServerArgs  # noqa: F401
+
     import torch
 
     if torch.cuda.is_initialized():
