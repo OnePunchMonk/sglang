@@ -267,6 +267,8 @@ def safetensors_weights_iterator(
         requested=requested, needs_key_filter=key_filter is not None
     )
 
+    logger.info("Weight reader: %s (device=%s)", backend.name, device)
+
     # Validate files before loading
     corrupted_files, duplicate_files_by_key = _scan_safetensors_files(hf_weights_files)
 

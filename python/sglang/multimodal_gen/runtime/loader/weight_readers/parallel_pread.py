@@ -44,20 +44,22 @@ class ParallelPreadWeightReader:
     ) -> Iterator[tuple[str, torch.Tensor]]:
         start_time = time.perf_counter()
         with ParallelPreadReader(device) as reader:
-            for path in tqdm(
-                files,
-                desc="Loading safetensors checkpoint shards",
-                disable=not show_progress,
-                bar_format=_BAR_FORMAT,
-            ):
-                for name in parse_safetensors_header(path):
-                    if key_filter is not None and not key_filter(name):
-                        continue
-                    yield name, reader.read(path, name)
-            elapsed = time.perf_counter() - start_time
-            logger.info(
-                "Parallel pread: read=%.2f GiB in %.1fs (%.2f GB/s)",
-                reader.bytes_read / (1024**3),
-                elapsed,
-                reader.bytes_read / 1e9 / max(elapsed, 1e-9),
-            )
+            try:
+                for path in tqdm(
+                    files,
+                    desc="Loading safetensors checkpoint shards",
+                    disable=not show_progress,
+                    bar_format=_BAR_FORMAT,
+                ):
+                    for name in parse_safetensors_header(path):
+                        if key_filter is not None and not key_filter(name):
+                            continue
+                        yield name, reader.read(path, name)
+            finally:
+                elapsed = time.perf_counter() - start_time
+                logger.info(
+                    "Parallel pread: read=%.2f GiB in %.1fs (%.2f GB/s)",
+                    reader.bytes_read / (1024**3),
+                    elapsed,
+                    reader.bytes_read / 1e9 / max(elapsed, 1e-9),
+                )
