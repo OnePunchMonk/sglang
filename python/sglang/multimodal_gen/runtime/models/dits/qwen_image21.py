@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import math
+from typing import Any, Callable
 
 import torch
 from torch import nn
@@ -13,6 +14,8 @@ from sglang.kernels.ops.diffusion import (
     fused_complex_rope,
     fused_layernorm_modulate,
     fused_silu_mul_bitexact,
+    prebuild_qknorm_complex_rope_cuda,
+    prebuild_residual_gate_add,
     qknorm_complex_rope_cuda,
     qknorm_complex_rope_pack_,
     residual_gate_add,
@@ -1106,6 +1109,20 @@ class QwenImage21Transformer2DModel(CachableDiT, LayerwiseOffloadableModuleMixin
         if sp > 1:
             output = sequence_model_parallel_all_gather(output, dim=1)
         return output
+
+
+def qwen_image21_dit_jit_prebuilds(
+    device: torch.device, dtype: torch.dtype, head_dim: int
+) -> list[Callable[[], Any]]:
+    """Builders for the JIT kernels a ``dtype`` DiT forward reaches on ``device``."""
+    if not _is_cuda or device.type != "cuda":
+        return []
+    builders = []
+    if dtype in (torch.float16, torch.bfloat16):
+        builders.append(lambda: prebuild_residual_gate_add(dtype))
+    if can_use_qknorm_complex_rope_cuda(dtype, head_dim):
+        builders.append(prebuild_qknorm_complex_rope_cuda(device))
+    return builders
 
 
 EntryClass = QwenImage21Transformer2DModel

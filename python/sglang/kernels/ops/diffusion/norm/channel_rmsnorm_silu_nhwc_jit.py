@@ -56,6 +56,13 @@ def _jit_module(vec: int, lanes: int, units: int, has_bias: bool) -> Module:
     )
 
 
+def prebuild_channel_rmsnorm_silu_nhwc(channels: int, has_bias: bool) -> Module | None:
+    """Build (or load from the JIT cache) the variant a ``channels``-wide input dispatches to."""
+    if channels <= 0 or channels % 2 or channels > _MAX_CHANNELS:
+        return None
+    return _jit_module(*_specialization(channels), has_bias)
+
+
 def _channel_last_dims(x: torch.Tensor) -> tuple[int, ...]:
     return (0, *range(2, x.ndim), 1)
 
@@ -133,5 +140,6 @@ def channel_rmsnorm_silu_nhwc(
 __all__ = [
     "can_use_channel_rmsnorm_silu_nhwc",
     "channel_rmsnorm_silu_nhwc",
+    "prebuild_channel_rmsnorm_silu_nhwc",
     "is_channels_last_dense",
 ]

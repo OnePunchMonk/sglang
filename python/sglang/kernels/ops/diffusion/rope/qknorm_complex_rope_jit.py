@@ -21,7 +21,7 @@ CUDA only: the ROCm reduction tree differs. Callers verify once through a
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 import torch
 
@@ -47,6 +47,18 @@ def _jit_module(fuse_real_sin: bool, copy_v: bool) -> Module:
             ("norm_rope_pack", f"qknorm_complex_rope::Kernel<{args}>::run_pack"),
         ],
     )
+
+
+def prebuild_qknorm_complex_rope_cuda(
+    device: torch.device, copy_v: bool = False
+) -> Callable[[], Module]:
+    """A builder for the variant ``device`` dispatches to.
+
+    The rotation-order probe runs a tiny kernel, so it runs here on the
+    caller's thread; the returned call only compiles and can run anywhere.
+    """
+    fuse_real_sin = _fuse_real_sin(device)
+    return lambda: _jit_module(fuse_real_sin, copy_v)
 
 
 @torch.compiler.assume_constant_result
@@ -125,6 +137,7 @@ def qknorm_complex_rope_pack_(
 
 __all__ = [
     "can_use_qknorm_complex_rope_cuda",
+    "prebuild_qknorm_complex_rope_cuda",
     "qknorm_complex_rope_cuda",
     "qknorm_complex_rope_pack_",
 ]

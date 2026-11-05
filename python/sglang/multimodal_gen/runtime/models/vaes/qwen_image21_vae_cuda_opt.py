@@ -41,6 +41,7 @@ checkpoint loading and weight transfer are unaffected.
 from __future__ import annotations
 
 from types import MethodType
+from typing import Any, Callable
 
 import torch
 import torch.nn.functional as F
@@ -57,6 +58,8 @@ from sglang.kernels.ops.diffusion import (
     channel_rmsnorm_silu_nhwc,
     dup_up3d_add,
     nearest_upsample_nhwc,
+    prebuild_bias_residual_add,
+    prebuild_channel_rmsnorm_silu_nhwc,
 )
 from sglang.multimodal_gen.runtime.models.vaes.conv_fold import (
     fold_upsample2x_conv2d_weight,
@@ -537,10 +540,77 @@ def maybe_optimize_qwen_image21_vae(vae: nn.Module) -> nn.Module:
     return vae
 
 
+def _is_plain_rms_norm(norm: nn.Module, rms_norm_cls: type) -> bool:
+    return (
+        type(norm) is rms_norm_cls
+        and norm.channel_first
+        and isinstance(norm.bias, float)
+        and norm.bias == 0.0
+    )
+
+
+def qwen_image21_vae_jit_prebuilds(vae_config) -> list[Callable[[], Any]]:
+    """Builders for the JIT kernels a decode at the default quality reaches.
+
+    The variants are read off a meta-device decoder built from ``vae_config``,
+    so they follow the same sites ``maybe_optimize_qwen_image21_vae`` patches.
+    """
+    from sglang.multimodal_gen.runtime.models.vaes.autoencoder_kl_qwenimage21 import (
+        QwenImage21Decoder3d,
+        QwenImage21ResidualBlock,
+        QwenImage21RMS_norm,
+        qwen_image21_decoder_kwargs,
+    )
+    from sglang.multimodal_gen.runtime.models.vaes.common import (
+        can_install_spatial_shard_parallel_decode,
+    )
+
+    if not current_platform.is_cuda() or current_platform.is_rocm():
+        return []
+    if not vae_config.load_decoder or can_install_spatial_shard_parallel_decode(
+        vae_config
+    ):
+        return []
+    with torch.device("meta"):
+        decoder = QwenImage21Decoder3d(
+            **qwen_image21_decoder_kwargs(vae_config.arch_config)
+        )
+    # (channels, has_bias): norm1 runs without a bias, norm2 takes conv1's
+    norm_variants = set()
+    needs_bias_residual_add = False
+    for module in decoder.modules():
+        if (
+            type(module) is QwenImage21ResidualBlock
+            and type(module.nonlinearity) is nn.SiLU
+            and _is_plain_rms_norm(module.norm1, QwenImage21RMS_norm)
+            and _is_plain_rms_norm(module.norm2, QwenImage21RMS_norm)
+        ):
+            norm_variants.add((module.norm1.gamma.shape[0], False))
+            norm_variants.add(
+                (module.norm2.gamma.shape[0], module.conv1.bias is not None)
+            )
+            needs_bias_residual_add |= module.conv2.bias is not None
+    if type(decoder.nonlinearity) is nn.SiLU and _is_plain_rms_norm(
+        decoder.norm_out, QwenImage21RMS_norm
+    ):
+        norm_variants.add((decoder.norm_out.gamma.shape[0], False))
+    builders = [
+        lambda c=channels, b=has_bias: prebuild_channel_rmsnorm_silu_nhwc(
+            channels=c, has_bias=b
+        )
+        for channels, has_bias in sorted(norm_variants)
+    ]
+    if needs_bias_residual_add:
+        # the default-quality decode runs channels_last
+        builders.append(lambda: prebuild_bias_residual_add(channels_inner=True))
+    return builders
+
+
 __all__ = [
     "ChannelsLastNearestUpsample",
     "FoldedPadConv2d",
     "FusedUpsample2xConv",
     "FusedChannelRMSNormSiLU",
     "maybe_optimize_qwen_image21_vae",
+    "qwen_image21_vae_jit_prebuilds",
 ]

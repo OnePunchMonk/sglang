@@ -619,6 +619,21 @@ def enable_qwen21_spatial_decode(module):
             enable_qwen21_spatial_decode(child)
 
 
+def qwen_image21_decoder_kwargs(ac) -> dict:
+    """``QwenImage21Decoder3d`` arguments for a VAE arch config."""
+    return dict(
+        dim=ac.decoder_base_dim or ac.base_dim,
+        z_dim=ac.z_dim,
+        dim_mult=list(ac.dim_mult),
+        num_res_blocks=ac.num_res_blocks,
+        attn_scales=list(ac.attn_scales),
+        dropout=ac.dropout,
+        is_residual=ac.is_residual,
+        temperal_upsample=list(ac.temperal_downsample)[::-1],
+        out_channels=ac.out_channels,
+    )
+
+
 class AutoencoderKLQwenImage21(ParallelTiledVAE):
     layer_names = [
         *ParallelTiledVAE.layer_names,
@@ -649,12 +664,7 @@ class AutoencoderKLQwenImage21(ParallelTiledVAE):
             self.quant_conv = QwenImage21CausalConv3d(ac.z_dim * 2, ac.z_dim * 2, 1)
         if config.load_decoder:
             self.post_quant_conv = QwenImage21CausalConv3d(ac.z_dim, ac.z_dim, 1)
-            self.decoder = QwenImage21Decoder3d(
-                dim=ac.decoder_base_dim or ac.base_dim,
-                **shared,
-                temperal_upsample=list(ac.temperal_downsample)[::-1],
-                out_channels=ac.out_channels,
-            )
+            self.decoder = QwenImage21Decoder3d(**qwen_image21_decoder_kwargs(ac))
         self.spatial_parallel = (
             config.load_decoder and can_install_spatial_shard_parallel_decode(config)
         )

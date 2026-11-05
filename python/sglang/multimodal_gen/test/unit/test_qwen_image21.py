@@ -2,6 +2,7 @@
 import argparse
 import json
 import sys
+import threading
 from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -14,6 +15,9 @@ from diffusers.image_processor import VaeImageProcessor
 from PIL import Image
 from transformers import BatchFeature
 
+from sglang.kernels.ops.diffusion.norm.channel_rmsnorm_silu_nhwc_jit import (
+    _specialization,
+)
 from sglang.multimodal_gen import registry
 from sglang.multimodal_gen.configs.models.dits.qwenimage21 import (
     QwenImage21ArchConfig,
@@ -930,3 +934,59 @@ def test_prefix_pad_replay_writes_the_captured_output():
         with replay_token_scope():
             assert graph._break_fns[0]() is None
     assert torch.all(out == 5)
+
+
+def test_jit_prebuild_covers_the_variants_a_default_decode_compiles(monkeypatch):
+    from sglang.multimodal_gen.runtime.models.vaes import qwen_image21_vae_cuda_opt
+
+    # Measured on H100: a cold 1024x1024 warmup decode compiles exactly these.
+    compiled_on_h100 = {
+        (8, lanes, 5, has_bias)
+        for lanes in (32, 16, 8, 4)
+        for has_bias in (True, False)
+    }
+    norm_calls, bias_add_calls = [], []
+    monkeypatch.setattr(
+        qwen_image21_vae_cuda_opt,
+        "current_platform",
+        SimpleNamespace(is_cuda=lambda: True, is_rocm=lambda: False),
+    )
+    monkeypatch.setattr(
+        qwen_image21_vae_cuda_opt,
+        "prebuild_channel_rmsnorm_silu_nhwc",
+        lambda channels, has_bias: norm_calls.append((channels, has_bias)),
+    )
+    monkeypatch.setattr(
+        qwen_image21_vae_cuda_opt,
+        "prebuild_bias_residual_add",
+        lambda channels_inner: bias_add_calls.append(channels_inner),
+    )
+    for build in qwen_image21_vae_cuda_opt.qwen_image21_vae_jit_prebuilds(
+        QwenImage21VAEConfig()
+    ):
+        build()
+
+    assert {(*_specialization(c), b) for c, b in norm_calls} == compiled_on_h100
+    assert len(norm_calls) == len(compiled_on_h100)
+    assert bias_add_calls == [True]
+
+
+def test_failed_jit_prebuild_leaves_the_rest_built_and_the_server_up(monkeypatch):
+    from sglang.multimodal_gen.runtime.utils.jit_prebuild import (
+        prebuild_jit_modules_in_background,
+    )
+
+    built, escaped = [], []
+    monkeypatch.setattr(threading, "excepthook", lambda a: escaped.append(a))
+
+    def fail():
+        raise RuntimeError("nvcc failed")
+
+    thread = prebuild_jit_modules_in_background(
+        "test", [fail, lambda: built.append("ok")]
+    )
+    thread.join(timeout=30)
+
+    assert not thread.is_alive()
+    assert built == ["ok"]
+    assert escaped == []

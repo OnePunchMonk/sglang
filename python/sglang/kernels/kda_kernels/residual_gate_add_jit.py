@@ -39,6 +39,11 @@ def _jit_residual_gate_add_module(dtype: torch.dtype) -> Module:
     )
 
 
+def prebuild_residual_gate_add(dtype: torch.dtype) -> Module:
+    """Build (or load from the JIT cache) the ``dtype`` variant."""
+    return _jit_residual_gate_add_module(dtype)
+
+
 def _fake_impl(
     residual: torch.Tensor, update: torch.Tensor, gate: torch.Tensor, mode: int
 ) -> torch.Tensor:
@@ -297,6 +302,7 @@ def residual_gate_add(
 
 __all__ = [
     "can_use_residual_gate_add_cuda",
+    "prebuild_residual_gate_add",
     "residual_gate_add",
     "residual_gate_add_cuda",
 ]

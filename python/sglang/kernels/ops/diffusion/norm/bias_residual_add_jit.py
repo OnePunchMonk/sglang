@@ -39,6 +39,11 @@ def _jit_module(channels_inner: bool) -> Module:
     )
 
 
+def prebuild_bias_residual_add(channels_inner: bool) -> Module:
+    """Build (or load from the JIT cache) the channels-inner or channels-first variant."""
+    return _jit_module(channels_inner)
+
+
 def _same_layout(y: torch.Tensor, h: torch.Tensor) -> bool:
     # strides of size-1 dims are arbitrary (a squeezed frame dim differs between
     # a permuted view and a fresh tensor) and do not change the element order
@@ -110,4 +115,8 @@ def bias_residual_add(
     return out
 
 
-__all__ = ["bias_residual_add", "can_use_bias_residual_add"]
+__all__ = [
+    "bias_residual_add",
+    "can_use_bias_residual_add",
+    "prebuild_bias_residual_add",
+]
