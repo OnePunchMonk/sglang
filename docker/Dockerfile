@@ -618,11 +618,19 @@ RUN if [ "$BRANCH_TYPE" = "local" ]; then \
 
 # Editable install (fast - dependencies already installed via constraints)
 # Clean up __pycache__/tests/pyc in same RUN to avoid writing ~28k files to layer
+# COMPILE_BYTECODE=1 then writes one fresh .pyc per module: without them every
+# container compiles the server's imports on first start (~25 s of `sglang serve` on H100).
+ARG COMPILE_BYTECODE=1
 RUN --mount=type=cache,target=/root/.cache/uv \
     cd /sgl-workspace/sglang \
     && uv pip install --no-deps -e "python[${BUILD_TYPE}]" \
     && mkdir -p /root/.cache/huggingface /root/.cache/sglang \
-    && ( find /opt/sglang/lib/python3.12/site-packages -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true )
+    && ( find /opt/sglang/lib/python3.12/site-packages -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true ) \
+    && if [ "${COMPILE_BYTECODE}" = "1" ]; then \
+        /opt/sglang/bin/python -m compileall -q -j 0 \
+            /opt/sglang/lib/python3.12/site-packages /sgl-workspace/sglang/python/sglang \
+            > /dev/null || true; \
+    fi
 
 ENV SGLANG_RUST_BUILD_MODE=never
 
@@ -789,7 +797,7 @@ RUN --mount=type=cache,target=/var/cache/apt,id=runtime-apt \
     dpkg dpkg-dev libdpkg-perl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Python site-packages from framework (already cleaned of __pycache__/tests/pyc files)
+# Copy Python site-packages from framework (stale __pycache__ removed, bytecode recompiled unless COMPILE_BYTECODE=0)
 COPY --from=framework_final /opt/sglang/lib/python3.12/site-packages /opt/sglang/lib/python3.12/site-packages
 COPY --from=framework_final /opt/sglang/bin/pip* /opt/sglang/bin/
 
