@@ -77,6 +77,9 @@ def _jit_convrot_int8_module() -> Module:
         raise RuntimeError(
             f"convrot_int8: no kernel for {where} (supported: {supported})"
         )
+    # One unit per CUTLASS GEMM config (CONVROT_INT8_GEMM_UNIT* in the .cuh), so
+    # nvcc builds them in parallel; the CC 12.x mma.sync path stays in one unit.
+    gemm_units = {(9, 0): 3, (10, 0): 2}.get(capability, 0)
     return load_jit(
         "convrot_int8",
         cuda_files=["gemm/convrot_int8/convrot_int8_entry.cuh"],
@@ -89,7 +92,9 @@ def _jit_convrot_int8_module() -> Module:
             ("convrot_int8_linear_prequant", "convrot_int8_linear_prequant"),
         ],
         extra_dependencies=["cutlass"],
-        extra_cuda_cflags=_convrot_int8_cuda_flags(),
+        extra_cuda_cflags=_convrot_int8_cuda_flags()
+        + (["-DCONVROT_INT8_SPLIT_GEMM"] if gemm_units else []),
+        cuda_units=[[f"CONVROT_INT8_GEMM_UNIT={i}"] for i in range(gemm_units)],
     )
 
 

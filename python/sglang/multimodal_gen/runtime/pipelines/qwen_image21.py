@@ -76,6 +76,7 @@ class QwenImage21Pipeline(LoRAPipeline, ComposedPipelineBase):
                 dtype=resolve_component_precision(server_args, "transformer"),
                 head_dim=dit_config.arch_config.attention_head_dim,
             )
+            builders += _convrot_int8_prebuilds(server_args)
         # a ComfyUI single-file model has no vae/config.json to read
         if "vae" in self.required_config_modules and not server_args.comfyui_mode:
             from sglang.multimodal_gen.runtime.models.vaes.qwen_image21_vae_cuda_opt import (
@@ -140,3 +141,19 @@ class QwenImage21Pipeline(LoRAPipeline, ComposedPipelineBase):
 
 
 EntryClass = QwenImage21Pipeline
+
+
+def _convrot_int8_prebuilds(server_args) -> list:
+    """The convrot_int8 ops an online-quantized DiT builds, ~1 min of nvcc otherwise
+    run inside the transformer load."""
+    if server_args.component_quantizations.get("transformer") != "convrot_int8":
+        return []
+    from sglang.kernels.ops.gemm.convrot_int8 import (
+        convrot_int8_local_capability,
+        convrot_int8_supported_capabilities,
+        load_convrot_int8_module,
+    )
+
+    if convrot_int8_local_capability() not in convrot_int8_supported_capabilities():
+        return []
+    return [load_convrot_int8_module]
