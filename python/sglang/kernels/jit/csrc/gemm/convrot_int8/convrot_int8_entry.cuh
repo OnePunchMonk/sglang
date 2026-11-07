@@ -407,6 +407,7 @@ void launch_rotate_quantize(const RotateOperands& op, bool gelu_input) {
   }
 }
 
+#ifndef CONVROT_INT8_GEMM_UNIT
 void check_group_size(int64_t K, int64_t group_size) {
   CHECK_HOST(is_supported_group_size(group_size))
       << "convrot_int8: unsupported group_size " << group_size << " (supported: 64, 128, 256, 512)";
@@ -432,6 +433,7 @@ void rotate_quantize_rowwise(const RotateOperands& op, int64_t group_size, bool 
       Panic("convrot_int8: unreachable group_size ", group_size);
   }
 }
+#endif  // CONVROT_INT8_GEMM_UNIT
 
 // ----------------------------------- GEMM -----------------------------------
 using ElementA = int8_t;
@@ -465,7 +467,7 @@ struct GemmOperands {
   cudaStream_t stream;
 };
 
-void check_cutlass(cutlass::Status status, const char* what) {
+inline void check_cutlass(cutlass::Status status, const char* what) {
   CHECK_HOST(status == cutlass::Status::kSuccess)
       << "convrot_int8: " << what << " failed: " << cutlassGetStatusString(status);
 }
@@ -776,6 +778,33 @@ void run_convrot_int8_gemm(const GemmOperands& op) {
   check_cutlass(gemm_op.run(op.stream), "run");
 }
 
+// With CONVROT_INT8_SPLIT_GEMM the CUTLASS GEMMs are instantiated in separate
+// translation units (load_jit cuda_units, CONVROT_INT8_GEMM_UNIT=i) that nvcc
+// builds in parallel; the main unit only declares them.
+#if SGL_CUDA_ARCH == 900
+#define CONVROT_INT8_GEMM_UNIT0(X) X(true, ConvRotSm90LargeM) X(false, ConvRotSm90LargeM)
+#define CONVROT_INT8_GEMM_UNIT1(X) X(true, ConvRotSm90SmallMNarrowN) X(false, ConvRotSm90SmallMNarrowN)
+#define CONVROT_INT8_GEMM_UNIT2(X) X(true, ConvRotSm90SmallMWideN) X(false, ConvRotSm90SmallMWideN)
+#else
+#define CONVROT_INT8_GEMM_UNIT0(X) X(true, ConvRotSm100Default) X(false, ConvRotSm100Default)
+#define CONVROT_INT8_GEMM_UNIT1(X) X(true, ConvRotSm100WideN)
+#define CONVROT_INT8_GEMM_UNIT2(X)
+#endif
+#define CONVROT_INT8_GEMM_DECLARE(BIAS, TYPES) extern template void run_convrot_int8_gemm<BIAS, TYPES>(const GemmOperands&);
+#define CONVROT_INT8_GEMM_DEFINE(BIAS, TYPES) template void run_convrot_int8_gemm<BIAS, TYPES>(const GemmOperands&);
+
+#if !defined(CONVROT_INT8_GEMM_UNIT) && defined(CONVROT_INT8_SPLIT_GEMM)
+CONVROT_INT8_GEMM_UNIT0(CONVROT_INT8_GEMM_DECLARE)
+CONVROT_INT8_GEMM_UNIT1(CONVROT_INT8_GEMM_DECLARE)
+CONVROT_INT8_GEMM_UNIT2(CONVROT_INT8_GEMM_DECLARE)
+#elif defined(CONVROT_INT8_GEMM_UNIT) && CONVROT_INT8_GEMM_UNIT == 0
+CONVROT_INT8_GEMM_UNIT0(CONVROT_INT8_GEMM_DEFINE)
+#elif defined(CONVROT_INT8_GEMM_UNIT) && CONVROT_INT8_GEMM_UNIT == 1
+CONVROT_INT8_GEMM_UNIT1(CONVROT_INT8_GEMM_DEFINE)
+#elif defined(CONVROT_INT8_GEMM_UNIT) && CONVROT_INT8_GEMM_UNIT == 2
+CONVROT_INT8_GEMM_UNIT2(CONVROT_INT8_GEMM_DEFINE)
+#endif
+
 template <bool WithBias>
 void dispatch_convrot_int8_gemm_typed(const GemmOperands& op) {
 #if SGL_CUDA_ARCH == 900
@@ -801,6 +830,7 @@ void dispatch_convrot_int8_gemm_typed(const GemmOperands& op) {
 #endif
 }
 
+#ifndef CONVROT_INT8_GEMM_UNIT
 void dispatch_convrot_int8_gemm(const GemmOperands& op) {
   if (op.bias != nullptr) {
     dispatch_convrot_int8_gemm_typed<true>(op);
@@ -808,8 +838,11 @@ void dispatch_convrot_int8_gemm(const GemmOperands& op) {
     dispatch_convrot_int8_gemm_typed<false>(op);
   }
 }
+#endif  // CONVROT_INT8_GEMM_UNIT
 
 #endif  // SGL_CUDA_ARCH
+
+#ifndef CONVROT_INT8_GEMM_UNIT
 
 // weight_q [N, K] int8; weight_scale holds N floats, either [N] or the [N, 1] a
 // serialized Comfy ConvRot checkpoint stores; bias [N] BF16 or absent.
@@ -855,8 +888,11 @@ int32_t checked_int32(int64_t value, const char* name) {
 ElementOutput* bias_ptr_or_null(const tvm::ffi::Optional<TensorView>& bias) {
   return bias.has_value() ? static_cast<ElementOutput*>(bias.value().data_ptr()) : nullptr;
 }
+#endif  // CONVROT_INT8_GEMM_UNIT
 
 }  // namespace convrot_int8
+
+#ifndef CONVROT_INT8_GEMM_UNIT
 
 /**
  * \brief Group-wise Hadamard rotation followed by per-row dynamic INT8 quantization.
@@ -1018,5 +1054,7 @@ void convrot_int8_linear_prequant(
           .stream = LaunchKernel::resolve_device(dev),
       });
 }
+
+#endif  // CONVROT_INT8_GEMM_UNIT
 
 }  // namespace sglang

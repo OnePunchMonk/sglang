@@ -1,9 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
+import copy
+import os
+
 from sglang.multimodal_gen.configs.pipeline_configs.qwen_image21 import (
     QwenImage21PipelineConfig,
 )
 from sglang.multimodal_gen.configs.sample.qwenimage21 import QwenImage21SamplingParams
 from sglang.multimodal_gen.runtime.disaggregation.roles import RoleType
+from sglang.multimodal_gen.runtime.distributed import get_local_torch_device
+from sglang.multimodal_gen.runtime.models.dits.qwen_image21 import (
+    qwen_image21_dit_jit_prebuilds,
+)
 from sglang.multimodal_gen.runtime.pipelines_core import LoRAPipeline
 from sglang.multimodal_gen.runtime.pipelines_core.composed_pipeline_base import (
     ComposedPipelineBase,
@@ -18,6 +25,16 @@ from sglang.multimodal_gen.runtime.pipelines_core.stages.model_specific_stages.q
     QwenImage21InputValidationStage,
     prepare_qwen21_mu,
 )
+from sglang.multimodal_gen.runtime.utils.hf_diffusers_utils import (
+    get_diffusers_component_config,
+)
+from sglang.multimodal_gen.runtime.utils.jit_prebuild import (
+    prebuild_jit_modules_in_background,
+)
+from sglang.multimodal_gen.runtime.utils.logging_utils import init_logger
+from sglang.multimodal_gen.runtime.utils.precision import resolve_component_precision
+
+logger = init_logger(__name__)
 
 
 class QwenImage21Pipeline(LoRAPipeline, ComposedPipelineBase):
@@ -39,6 +56,45 @@ class QwenImage21Pipeline(LoRAPipeline, ComposedPipelineBase):
         if self.server_args.pipeline_config.sample_sigmas is None:
             self.server_args.pipeline_config.sample_sigmas = sample_sigmas
         return model_index
+
+    def load_modules(self, server_args, loaded_modules=None):
+        # nvcc runs on the host while the weights load; warmup then finds the kernels built
+        try:
+            builders = self._jit_prebuilds(server_args)
+        except Exception as e:
+            logger.warning("Skipping the Qwen-Image 2.1 JIT prebuild: %s", e)
+            builders = []
+        prebuild_jit_modules_in_background("Qwen-Image 2.1", builders)
+        return super().load_modules(server_args, loaded_modules)
+
+    def _jit_prebuilds(self, server_args):
+        builders = []
+        if "transformer" in self.required_config_modules:
+            dit_config = server_args.pipeline_config.dit_config
+            builders += qwen_image21_dit_jit_prebuilds(
+                device=get_local_torch_device(),
+                dtype=resolve_component_precision(server_args, "transformer"),
+                head_dim=dit_config.arch_config.attention_head_dim,
+            )
+            builders += _convrot_int8_prebuilds(server_args)
+        # a ComfyUI single-file model has no vae/config.json to read
+        if "vae" in self.required_config_modules and not server_args.comfyui_mode:
+            from sglang.multimodal_gen.runtime.models.vaes.qwen_image21_vae_cuda_opt import (
+                qwen_image21_vae_jit_prebuilds,
+            )
+
+            vae_path = server_args.component_paths.get("vae") or os.path.join(
+                self.model_path, "vae"
+            )
+            # the loader applies the checkpoint's arch later; a private copy sees it now
+            vae_config = copy.deepcopy(server_args.pipeline_config.vae_config)
+            vae_arch = get_diffusers_component_config(component_path=vae_path)
+            vae_arch.pop("_class_name", None)
+            vae_arch.pop("_diffusers_version", None)
+            vae_config.update_model_arch(vae_arch)
+            vae_config.post_init()
+            builders += qwen_image21_vae_jit_prebuilds(vae_config)
+        return builders
 
     def create_pipeline_stages(self, server_args):
         self.add_stage(QwenImage21InputValidationStage())
@@ -85,3 +141,19 @@ class QwenImage21Pipeline(LoRAPipeline, ComposedPipelineBase):
 
 
 EntryClass = QwenImage21Pipeline
+
+
+def _convrot_int8_prebuilds(server_args) -> list:
+    """The convrot_int8 ops an online-quantized DiT builds, ~1 min of nvcc otherwise
+    run inside the transformer load."""
+    if server_args.component_quantizations.get("transformer") != "convrot_int8":
+        return []
+    from sglang.kernels.ops.gemm.convrot_int8 import (
+        convrot_int8_local_capability,
+        convrot_int8_supported_capabilities,
+        load_convrot_int8_module,
+    )
+
+    if convrot_int8_local_capability() not in convrot_int8_supported_capabilities():
+        return []
+    return [load_convrot_int8_module]
