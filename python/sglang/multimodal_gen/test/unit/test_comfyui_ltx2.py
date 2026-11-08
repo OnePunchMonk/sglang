@@ -30,6 +30,12 @@ def test_ltx23_comfyui_spec_keeps_only_the_transformer_weights():
     assert spec is not None
     assert spec.checkpoint_key_filter("model.diffusion_model.transformer_blocks.0")
     assert not spec.checkpoint_key_filter("vae.decoder.conv_in.weight")
+    assert not spec.checkpoint_key_filter(
+        "model.diffusion_model.audio_embeddings_connector.learnable_registers"
+    )
+    assert not spec.checkpoint_key_filter(
+        "model.diffusion_model.video_embeddings_connector.learnable_registers"
+    )
 
 
 def test_ltx23_comfyui_spec_maps_diffusers_checkpoint_names():

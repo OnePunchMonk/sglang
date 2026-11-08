@@ -8,6 +8,18 @@ from sglang.multimodal_gen.runtime.loader.comfyui_checkpoints.spec import (
 )
 from sglang.multimodal_gen.runtime.server_args import ServerArgs
 
+_COMFYUI_ONLY_CONNECTOR_PREFIXES = (
+    "model.diffusion_model.audio_embeddings_connector.",
+    "model.diffusion_model.video_embeddings_connector.",
+)
+
+
+def _is_ltx2_dit_weight(key: str) -> bool:
+    """Keep transformer weights; ComfyUI runs text connectors on its side."""
+    return key.startswith("model.diffusion_model.") and not key.startswith(
+        _COMFYUI_ONLY_CONNECTOR_PREFIXES
+    )
+
 
 def _build_dit_config(server_args: ServerArgs) -> LTX2Config:
     dit_config = getattr(server_args.pipeline_config, "dit_config", None)
@@ -30,8 +42,8 @@ register_comfyui_checkpoint(
     ComfyUICheckpointSpec(
         dit_cls_name="LTX2VideoTransformer3DModel",
         build_dit_config=_build_dit_config,
-        # Keep the transformer portion of ComfyUI's all-in-one checkpoint;
-        # LTX-2.3's text encoder and VAEs are loaded by the existing pipeline.
-        checkpoint_key_filter=lambda key: key.startswith("model.diffusion_model."),
+        # Keep the DiT portion of ComfyUI's all-in-one checkpoint. ComfyUI
+        # runs the LTX text connectors itself and sends their output embeddings.
+        checkpoint_key_filter=_is_ltx2_dit_weight,
     ),
 )
