@@ -1818,6 +1818,7 @@ class ServerArgs(DisaggServerArgsMixin):
                 "lightricks/ltx-2.3",
                 "models--lightricks--ltx-2.3",
                 "lightricks__ltx-2.3",
+                "sulphurai/sulphur-2-base",
             )
         )
 

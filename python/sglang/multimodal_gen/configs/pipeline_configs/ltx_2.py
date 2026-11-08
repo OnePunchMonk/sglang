@@ -706,11 +706,23 @@ def register():
     register_configs(
         sampling_param_cls=LTX23SamplingParams,
         pipeline_config_cls=LTX23PipelineConfig,
-        hf_model_paths=["Lightricks/LTX-2.3"],
+        hf_model_paths=["Lightricks/LTX-2.3", "SulphurAI/Sulphur-2-base"],
         model_detectors=[
             lambda path: "ltx-2.3" in path.lower(),
+            lambda path: "sulphur-2-base" in path.lower(),
         ],
         pipeline_config_registry_entries={
             "LTX2TwoStageHQPipeline": (LTX2PipelineConfig, LTX23HQSamplingParams),
         },
+    )
+
+    # Sulphur publishes a ComfyUI single-file checkpoint rather than a
+    # Diffusers pipeline directory. ComfyUI owns the sampler and decode path,
+    # so select SGLang's single-DiT LTX pipeline for the checkpoint adapter.
+    from sglang.multimodal_gen.registry import (
+        KNOWN_NON_DIFFUSERS_DIFFUSION_MODEL_PATTERNS,
+    )
+
+    KNOWN_NON_DIFFUSERS_DIFFUSION_MODEL_PATTERNS["sulphurai/sulphur-2-base"] = (
+        "LTX2Pipeline"
     )
