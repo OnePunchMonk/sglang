@@ -6,6 +6,8 @@ import copy
 
 from comfy.model_patcher import ModelPatcher
 
+from ..executors.base import _reject_model_patches
+
 
 class SGLDModelPatcher(ModelPatcher):
     """Model patcher for SGLang Diffusion models in ComfyUI."""
@@ -86,8 +88,8 @@ class SGLDModelPatcher(ModelPatcher):
         load_weights=True,
         force_patch_weights=False,
     ):
-        """Patch model (no-op for SGLang Diffusion)."""
-        pass
+        """Reject unsupported patches before ComfyUI applies them to the model."""
+        _reject_model_patches(self.model_options.get("transformer_options"))
 
     def unpatch_model(self, device_to=None, unpatch_weights=True):
         """Unpatch model (no-op for SGLang Diffusion)."""
