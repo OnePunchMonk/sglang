@@ -30,6 +30,17 @@ Choose LTX when one model family must span fast generation, higher-quality refin
 
 Use `Lightricks/LTX-2` or `Lightricks/LTX-2.3` as `--model-path`. SGLang loads the two-stage upsampler and distilled components from the selected snapshot.
 
+### Sulphur 2 single-file checkpoint
+
+[Sulphur 2](https://huggingface.co/SulphurAI/Sulphur-2-base) is an LTX-2.3 fine-tune published as a ComfyUI checkpoint. Use it with ComfyUI integrated mode; SGLang downloads the BF16 development checkpoint from the Hub when you pass the repository ID. The checkpoint is 46.1 GB, so allow enough local cache space. This mode serves the DiT for ComfyUI's sampling and decode workflow.
+
+```bash
+sglang serve \
+  --model-path SulphurAI/Sulphur-2-base \
+  --pipeline-class-name LTX2Pipeline \
+  --comfyui-mode
+```
+
 <Warning>
 **License notice:** LTX-2 and LTX-2.3 are released under the LTX-2 Community License Agreement, not Apache 2.0. The license includes commercial-use restrictions for some entities. Review the [official Lightricks license](https://huggingface.co/Lightricks/LTX-2.3/blob/main/LICENSE) before production or commercial use; SGLang support does not grant additional model usage rights.
 </Warning>

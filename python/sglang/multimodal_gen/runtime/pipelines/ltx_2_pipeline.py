@@ -327,6 +327,11 @@ class LTX2FlowMatchScheduler(FlowMatchEulerDiscreteScheduler):
         return math.exp(mu) / (math.exp(mu) + (1 / t - 1) ** sigma)
 
 
+def _is_sulphur_repo_id(model_path: str) -> bool:
+    """Check for the one Sulphur Hub repo that ships a ComfyUI-only checkpoint."""
+    return model_path.lower().rstrip("/") == "sulphurai/sulphur-2-base"
+
+
 class _BaseLTX2Pipeline(LoRAPipeline):
     _required_config_modules = [
         "transformer",
@@ -345,6 +350,20 @@ class _BaseLTX2Pipeline(LoRAPipeline):
     _DEV_TRANSFORMER_SUBFOLDER = "transformer_full"
 
     def __init__(self, model_path, server_args, required_config_modules=None, **kwargs):
+        if _is_sulphur_repo_id(model_path):
+            if not server_args.comfyui_mode:
+                raise ValueError(
+                    "Sulphur-2-base is published as a single ComfyUI checkpoint. "
+                    "Use --comfyui-mode to load it with the LTX-2.3 checkpoint adapter."
+                )
+            from huggingface_hub import hf_hub_download
+
+            model_path = hf_hub_download(
+                repo_id=model_path,
+                filename="sulphur_dev_bf16.safetensors",
+                revision=server_args.revision,
+            )
+            logger.info("Downloaded Sulphur-2 BF16 checkpoint to %s", model_path)
         self._maybe_route_dev_transformer(model_path, server_args)
         # LTX-2 / 2.3 ship neither. The small duration head is always available
         # when declared; the much larger decoder is loaded only on request.
