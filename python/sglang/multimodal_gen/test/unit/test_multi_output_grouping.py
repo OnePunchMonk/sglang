@@ -251,6 +251,11 @@ class TestMultiOutputGrouping(unittest.TestCase):
         self.assertTrue(torch.equal(reqs[0].prompt_embeds[0], torch.tensor([1.0])))
         self.assertTrue(torch.equal(reqs[1].prompt_embeds[0], torch.tensor([2.0])))
 
+    def test_freeze_for_dedup_keeps_large_tensors_distinct(self):
+        a, b = torch.zeros(300), torch.ones(300)
+        freeze = PipelineStage.freeze_for_dedup
+        self.assertNotEqual(freeze(a), freeze(b))
+
     def test_latent_grouped_path_batches_equivalent_requests_once(self):
         stage = CountingLatentStage()
         reqs = [

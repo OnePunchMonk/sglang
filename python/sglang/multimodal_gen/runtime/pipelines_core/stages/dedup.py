@@ -167,7 +167,8 @@ class StageDedupMixin:
                     str(value.dtype),
                     tuple(value.detach().cpu().reshape(-1).tolist()),
                 )
-            return ("tensor", tuple(value.shape), str(value.dtype), value.device.type)
+            # contents are not hashed, so a large tensor only matches itself
+            return ("tensor", id(value))
         if isinstance(value, dict):
             return tuple(
                 sorted(

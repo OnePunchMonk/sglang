@@ -43,6 +43,8 @@ class TimestepPreparationFingerprint:
     height: int | None
     width: int | None
     num_frames: int | None
+    rollout: bool
+    extra_set_timesteps_kwargs: Any
 
 
 class TimestepPreparationStage(PipelineStage):
@@ -56,6 +58,7 @@ class TimestepPreparationStage(PipelineStage):
     deduplicated_tensor_tree_output_fields = ("timesteps", "sigmas")
     deduplicated_deepcopy_output_fields = ("scheduler",)
     deduplicated_extra_tensor_tree_output_keys = ("mu",)
+    _isolate_schedulers = False
 
     def __init__(
         self,
@@ -89,9 +92,13 @@ class TimestepPreparationStage(PipelineStage):
                 get_or_create_rollout_request_scheduler,
             )
 
-            scheduler = get_or_create_rollout_request_scheduler(batch, self.scheduler)
+            scheduler = get_or_create_rollout_request_scheduler(
+                batch, self.scheduler, isolate=self._isolate_schedulers
+            )
         else:
-            scheduler = get_or_create_request_scheduler(batch, self.scheduler)
+            scheduler = get_or_create_request_scheduler(
+                batch, self.scheduler, isolate=self._isolate_schedulers
+            )
         device = get_local_torch_device()
         num_inference_steps = batch.num_inference_steps
         timesteps = batch.timesteps
@@ -173,6 +180,14 @@ class TimestepPreparationStage(PipelineStage):
             )
         return batch
 
+    def run_grouped_requests(self, batches: list[Req], server_args: ServerArgs):
+        # every group runs before denoising, so each needs its own scheduler state
+        self._isolate_schedulers = len(batches) > 1
+        try:
+            return super().run_grouped_requests(batches, server_args)
+        finally:
+            self._isolate_schedulers = False
+
     def build_dedup_fingerprint(
         self, batch: Req, server_args: ServerArgs
     ) -> TimestepPreparationFingerprint:
@@ -184,6 +199,13 @@ class TimestepPreparationStage(PipelineStage):
             height=batch.height,
             width=batch.width,
             num_frames=batch.num_frames,
+            rollout=bool(batch.rollout),
+            extra_set_timesteps_kwargs=self.freeze_for_dedup(
+                [
+                    callee(batch, server_args)
+                    for callee in self.prepare_extra_set_timesteps_kwargs
+                ]
+            ),
         )
 
     def verify_input(self, batch: Req, server_args: ServerArgs) -> VerificationResult:
